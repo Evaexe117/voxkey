@@ -107,6 +107,12 @@ def record_utterance(
 
     Returns None when no speech was ever heard, which the caller reports rather
     than sending an empty buffer to the model.
+
+    ``clock`` must read 0.0 at the start of the recording and increase with
+    elapsed time: SilenceDetector measures its wait window against that origin.
+    A clock that does not start at 0, such as a bare time.monotonic(), makes the
+    give-up branch fire immediately. Callers wiring a real device pass a clock
+    zeroed at the first block; see StreamRecorder in runtime.
     """
     collected: list[npt.NDArray[np.float32]] = []
     for block in source.blocks():

@@ -2715,16 +2715,21 @@ class SilenceDetector:
         self._threshold = threshold
         self._silence_secs = silence_secs
         self._wait_secs = wait_secs
-        self._started: float | None = None
         self._last_speech = 0.0
         self.speech_detected = False
         self.finished = False
 
     def feed(self, level: float, now: float) -> bool:
-        """Return True to keep recording, False to stop."""
-        if self._started is None:
-            self._started = now
-            self._last_speech = now
+        """Return True to keep recording, False to stop.
+
+        ``now`` is measured from the start of the recording: record_utterance
+        passes a clock that reads 0 at its first block. The wait window is
+        therefore compared against ``now`` directly. An earlier version of this
+        code latched ``_started`` on the first feed instead, which measured the
+        wait window from whenever the first block happened to arrive rather than
+        from the recording's start, and contradicted
+        test_detector_gives_up_when_no_speech_ever_arrives.
+        """
         if level > self._threshold:
             self.speech_detected = True
             self._last_speech = now
@@ -2734,7 +2739,7 @@ class SilenceDetector:
                 self.finished = True
                 return False
             return True
-        if now - self._started >= self._wait_secs:
+        if now >= self._wait_secs:
             self.finished = True
             return False
         return True

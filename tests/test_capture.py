@@ -102,5 +102,27 @@ def test_record_stops_when_the_stop_flag_is_raised() -> None:
     assert len(audio) == 3 * 160
 
 
+def test_manual_stop_over_silence_still_counts_as_a_recording() -> None:
+    # A manual stop is a valid recording whatever the levels were. The other
+    # stop-flag test uses loud audio, so speech is already detected before the
+    # stop fires; this one keeps every block silent so only the stop flag can
+    # make the recording count.
+    source = SyntheticAudioSource(
+        [np.zeros(160, dtype=np.float32) for _ in range(10)], block_secs=1.0
+    )
+    detector = SilenceDetector(threshold=0.1, silence_secs=3.0, wait_secs=10.0)
+    calls = {"count": 0}
+
+    def stop_flag() -> bool:
+        calls["count"] += 1
+        return calls["count"] >= 2
+
+    audio = record_utterance(
+        source, detector, clock=source.clock, stop_flag=stop_flag
+    )
+    assert audio is not None
+    assert len(audio) == 2 * 160
+
+
 def test_sample_rate_is_the_one_whisper_expects() -> None:
     assert SAMPLE_RATE == 16000
