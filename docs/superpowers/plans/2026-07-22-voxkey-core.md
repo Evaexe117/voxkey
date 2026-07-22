@@ -4448,6 +4448,16 @@ and the loop continues rather than leaving the user with a dead key."
 
 ### Task 19: `ipc/client.py` and `cli.py`
 
+> **Ordering correction found during execution.** As drafted, this task created
+> `ipc/client.py` after Task 18's `ptt/runner.py`, but `runner.py` imports
+> `dictate_once` from `ipc/client.py` at module top, so building 18 first makes
+> `import voxkey.ptt.runner` fail and takes down even the pure tests.
+> `ipc/client.py` depends only on `ipc/protocol.py` (exists after Task 7), so the
+> build order is: `ipc/client.py` first, then Task 18's `runner.py`, then `cli.py`
+> and `__main__.py`. Faking the missing module or deferring the import purely to
+> reorder was rejected; the dependency is built first instead. `ipc/client.py`
+> landed in commit 88ba2b4.
+
 **Files:**
 - Create: `src/voxkey/ipc/client.py`
 - Create: `src/voxkey/cli.py`
