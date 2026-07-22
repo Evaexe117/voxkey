@@ -1437,6 +1437,16 @@ being stripped."
 - Consumes: nothing.
 - Produces: `RemoteRequest` dataclass with `language: str`, `initial_prompt: str`, `audio: numpy.ndarray`. Functions `encode_request(request: RemoteRequest) -> bytes`, `decode_request(stream: IO[bytes]) -> RemoteRequest`, `encode_response(text: str) -> bytes`, `encode_error(message: str) -> bytes`, `decode_response(payload: bytes) -> str`. Exception `RemoteError(RuntimeError)`.
 
+> **Implemented beyond this text.** The code below lets `json.JSONDecodeError`,
+> `KeyError`, `ValueError`, `TypeError` and `UnicodeDecodeError` escape from
+> `decode_request` and `decode_response`, which contradicts `RemoteError`'s own
+> docstring and would kill a server loop written to catch `RemoteError` and keep
+> serving. Review caught it. The shipped module wraps every malformed-frame path
+> in `RemoteError`, chaining the original cause, and rejects a negative or
+> wrong-typed `audio_length` and a non-UTF-8 header. Eleven malformed-frame
+> cases are covered by tests. See commits `cb62d29` and `b5c55fc`. The byte
+> layout below is unchanged and remains authoritative.
+
 - [ ] **Step 1: Write the failing test**
 
 `tests/test_tcp.py`:
