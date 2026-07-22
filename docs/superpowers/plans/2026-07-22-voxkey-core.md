@@ -1663,6 +1663,17 @@ dictate so the two interoperate during an upgrade."
 - Consumes: nothing.
 - Produces: `DictationRequest` dataclass with `language: str`, `initial_prompt: str | None`, `wait_secs: float | None`, `silence_secs: float | None`. Messages `StatusMessage(status: str)`, `ResultMessage(text: str)`, `ErrorMessage(message: str)`, union alias `Reply`. Functions `encode_request`, `decode_request`, `encode_reply`, `decode_reply`. Constants `STATUS_RECORDING`, `STATUS_TRANSCRIBING`. Exception `ProtocolError(ValueError)`.
 
+> **Implemented beyond this text.** The code below accepts ill-typed optional
+> fields silently: `decode_request` only coerces `language`, so `wait_secs =
+> "five"` or `initial_prompt = 42` would escape and explode later inside the
+> daemon. The shipped module validates each optional field the way `config.py`
+> validates the file (string for `initial_prompt`; positive number, `bool`
+> rejected, for the two durations), and absent-or-null still means "not
+> specified". `encode_reply`'s `match` also gained a `case _: assert_never(...)`
+> so mypy fails the build if a fourth `Reply` variant is ever left unhandled.
+> `decode_reply`'s key precedence (`status`, then `text`, then `error`) is now
+> documented and tested. See commit `9bdcfd4`.
+
 - [ ] **Step 1: Write the failing test**
 
 `tests/test_ipc_protocol.py`:
