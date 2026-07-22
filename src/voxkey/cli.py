@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import signal
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from voxkey import __version__, hints, paths, runtime, state
 from voxkey.config import ConfigError, load
@@ -82,12 +85,27 @@ def _command_lang(
     return 0
 
 
+def _signal_daemon(pid_path: Path) -> bool:
+    """Send SIGTERM to the daemon named by ``pid_path``.
+
+    Returns True if a live process was signalled, False if the daemon is not
+    running: no pid file, or the process behind it is already gone.
+    """
+    try:
+        pid = int(pid_path.read_text().strip())
+    except (OSError, ValueError):
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return False
+    return True
+
+
 def _command_stop() -> int:
-    socket_path = paths.socket_file()
-    if not socket_path.exists():
+    if not _signal_daemon(paths.pid_file()):
         print("the voxkey daemon is not running", file=sys.stderr)
         return 1
-    state.write_atomic(paths.stop_file(), "stop")
     return 0
 
 

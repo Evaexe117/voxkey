@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
+import signal
 import socket
 import threading
 import time
 from collections.abc import Sequence
+from types import FrameType
 
 import numpy as np
 import numpy.typing as npt
 
-from voxkey import paths
+from voxkey import paths, state
 from voxkey.audio.calibration import (
     CALIBRATION_SECS,
     DEFAULT_RETRIES,
@@ -198,5 +201,19 @@ def run_serve(config: Config, listen: str | None, remote: str | None) -> int:
         socket_path=paths.socket_file(),
         config=effective,
     )
-    daemon.serve_forever()
+
+    def _handle_shutdown_signal(signum: int, frame: FrameType | None) -> None:  # noqa: ARG001
+        logger.info("received signal %d, stopping", signum)
+        daemon.stop()
+
+    pid_path = paths.pid_file()
+    state.write_atomic(pid_path, str(os.getpid()))
+    previous_term = signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+    previous_int = signal.signal(signal.SIGINT, _handle_shutdown_signal)
+    try:
+        daemon.serve_forever()
+    finally:
+        signal.signal(signal.SIGTERM, previous_term)
+        signal.signal(signal.SIGINT, previous_int)
+        pid_path.unlink(missing_ok=True)
     return 0
