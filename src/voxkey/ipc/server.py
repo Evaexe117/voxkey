@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 RECEIVE_CHUNK = 4096
 ACCEPT_TIMEOUT_SECS = 0.2
+#: The request is a small JSON object; 1 MiB is generous.
+MAX_REQUEST_BYTES = 1024 * 1024
 
 
 class Recorder(Protocol):
@@ -123,6 +125,18 @@ class Daemon:
             if not chunk:
                 break
             payload += chunk
+            if len(payload) > MAX_REQUEST_BYTES:
+                logger.warning(
+                    "rejected an oversized request (%d bytes)", len(payload)
+                )
+                self._send(
+                    connection,
+                    ErrorMessage(
+                        f"request too large: exceeds the "
+                        f"{MAX_REQUEST_BYTES} byte limit"
+                    ),
+                )
+                return
         try:
             request = decode_request(payload)
         except ProtocolError as error:

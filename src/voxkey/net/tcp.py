@@ -23,6 +23,12 @@ import numpy.typing as npt
 HEADER_LENGTH_FORMAT = ">I"
 HEADER_LENGTH_SIZE = 4
 
+#: The header is a small JSON object; 64 KiB is generous.
+MAX_HEADER_BYTES = 64 * 1024
+#: ~2 hours of 16 kHz float32 mono audio (~64 KiB/s), enough for any
+#: dictation while still bounding a malicious or buggy audio_length.
+MAX_AUDIO_BYTES = 512 * 1024 * 1024
+
 
 class RemoteError(RuntimeError):
     """The peer reported a failure, or the frame was unusable."""
@@ -64,6 +70,11 @@ def _read_exactly(stream: IO[bytes], size: int) -> bytes:
 def decode_request(stream: IO[bytes]) -> RemoteRequest:
     raw_length = _read_exactly(stream, HEADER_LENGTH_SIZE)
     (header_length,) = struct.unpack(HEADER_LENGTH_FORMAT, raw_length)
+    if header_length > MAX_HEADER_BYTES:
+        raise RemoteError(
+            f"header too large: {header_length} bytes exceeds the "
+            f"{MAX_HEADER_BYTES} byte limit"
+        )
     raw_header_bytes = _read_exactly(stream, header_length)
     try:
         raw_header = raw_header_bytes.decode()
@@ -91,6 +102,11 @@ def decode_request(stream: IO[bytes]) -> RemoteRequest:
     if audio_length < 0:
         raise RemoteError(
             f"invalid header: audio_length must not be negative, got {audio_length}"
+        )
+    if audio_length > MAX_AUDIO_BYTES:
+        raise RemoteError(
+            f"audio too large: {audio_length} bytes exceeds the "
+            f"{MAX_AUDIO_BYTES} byte limit"
         )
     payload = _read_exactly(stream, audio_length)
     audio: npt.NDArray[np.float32] = np.frombuffer(payload, dtype=np.float32)

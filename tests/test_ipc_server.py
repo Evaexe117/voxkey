@@ -10,6 +10,7 @@ import numpy.typing as npt
 import pytest
 
 from voxkey.config import Config
+from voxkey.ipc import server as server_module
 from voxkey.ipc.protocol import (
     STATUS_RECORDING,
     STATUS_TRANSCRIBING,
@@ -186,6 +187,54 @@ def test_a_client_that_disconnects_before_reading_does_not_kill_the_daemon(
         assert replies[-1] == ResultMessage("transcribed text")
     finally:
         ready.set()
+        instance.stop()
+        thread.join(timeout=5)
+
+
+def test_an_oversized_request_is_rejected_and_the_daemon_keeps_serving(
+    xdg: Path,  # noqa: ARG001
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A small limit keeps the test fast without weakening the assertion:
+    # the daemon must reject anything past its configured cap.
+    monkeypatch.setattr(server_module, "MAX_REQUEST_BYTES", 64)
+    socket_path = tmp_path / "oversized.sock"
+    transcriber = FakeTranscriber(["transcribed text"])
+    recorder = FakeRecorder([np.ones(160, dtype=np.float32)])
+    instance = Daemon(
+        transcriber=transcriber,
+        recorder=recorder,
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(str(socket_path))
+        with client:
+            client.sendall(b"x" * 200)
+            client.shutdown(socket.SHUT_WR)
+            buffer = b""
+            while True:
+                chunk = client.recv(4096)
+                if not chunk:
+                    break
+                buffer += chunk
+        reply = decode_reply(buffer.strip())
+        assert isinstance(reply, ErrorMessage)
+        assert "too large" in reply.message
+
+        # The daemon must not have been brought down by the rejection.
+        replies = _dictate(socket_path, DictationRequest())
+        assert replies[-1] == ResultMessage("transcribed text")
+    finally:
         instance.stop()
         thread.join(timeout=5)
 

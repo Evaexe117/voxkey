@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 
 from voxkey.net.tcp import (
+    MAX_AUDIO_BYTES,
+    MAX_HEADER_BYTES,
     RemoteError,
     RemoteRequest,
     decode_request,
@@ -146,4 +148,23 @@ def test_audio_length_null_is_reported() -> None:
 def test_non_utf8_header_is_reported() -> None:
     frame = _frame_with_header_bytes(b"\xff\xfe invalid utf8")
     with pytest.raises(RemoteError, match="UTF-8"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_header_length_over_the_limit_is_rejected_without_reading_it() -> None:
+    # The stream carries no bytes past the declared (oversized) header
+    # length. If the code tried to read that many bytes anyway it would
+    # raise "truncated frame" instead, so this also proves the limit check
+    # runs before any attempt to read the declared amount.
+    frame = struct.pack(">I", MAX_HEADER_BYTES + 1)
+    with pytest.raises(RemoteError, match="header too large"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_audio_length_over_the_limit_is_rejected_without_reading_it() -> None:
+    header = json.dumps(
+        {"language": "en", "initial_prompt": "", "audio_length": MAX_AUDIO_BYTES + 1}
+    ).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="audio too large"):
         decode_request(io.BytesIO(frame))
