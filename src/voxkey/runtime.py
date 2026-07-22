@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 BACKLOG = 1
 ACCEPT_TIMEOUT_SECS = 0.2
+CONNECTION_TIMEOUT_SECS = 30.0
 
 
 def build_transcriber(config: Config) -> Transcriber:
@@ -147,6 +148,11 @@ def run_tcp_server(
                 connection, peer = listener.accept()
             except TimeoutError:
                 continue
+            # Accepted connections do not inherit the listener's accept
+            # timeout. Without one, a client that connects and then never
+            # sends and never closes blocks this single-threaded read
+            # forever, wedging the whole server for every other client.
+            connection.settimeout(CONNECTION_TIMEOUT_SECS)
             with connection:
                 try:
                     with connection.makefile("rb") as stream:

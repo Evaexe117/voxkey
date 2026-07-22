@@ -111,3 +111,58 @@ def test_the_tcp_server_transcribes_what_it_is_sent(
             payload += chunk
     assert decode_response(payload) == "server heard you"
     assert transcriber.calls == [("fr", "Terms: a.", 32)]
+
+
+def test_a_silent_client_does_not_wedge_the_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A short per-connection timeout keeps the test fast.
+    monkeypatch.setattr(runtime, "CONNECTION_TIMEOUT_SECS", 0.3)
+    transcriber = FakeTranscriber(["server heard you"])
+    probe_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe_socket.bind(("127.0.0.1", 0))
+    address = probe_socket.getsockname()
+    probe_socket.close()
+    stop = threading.Event()
+    thread = threading.Thread(
+        target=runtime.run_tcp_server, args=(transcriber, address, stop), daemon=True
+    )
+    thread.start()
+    silent_client: socket.socket | None = None
+    try:
+        for _ in range(200):
+            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                probe.connect(address)
+            except OSError:
+                probe.close()
+                threading.Event().wait(0.01)
+                continue
+            else:
+                probe.close()
+                break
+
+        silent_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        silent_client.connect(address)
+        # Deliberately never send anything and never close: this must not
+        # prevent a well-behaved client, connected right after, from being
+        # served once the silent connection's read times out.
+
+        frame = encode_request(
+            RemoteRequest("fr", "Terms: a.", np.ones(4, dtype=np.float32))
+        )
+        with socket.create_connection(address, 5) as connection:
+            connection.sendall(frame)
+            connection.shutdown(socket.SHUT_WR)
+            payload = b""
+            while True:
+                chunk = connection.recv(4096)
+                if not chunk:
+                    break
+                payload += chunk
+        assert decode_response(payload) == "server heard you"
+    finally:
+        if silent_client is not None:
+            silent_client.close()
+        stop.set()
+        thread.join(timeout=5)
