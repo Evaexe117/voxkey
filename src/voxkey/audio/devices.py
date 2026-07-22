@@ -7,7 +7,7 @@ and ``StreamAudioSource`` touch PortAudio.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -56,7 +56,7 @@ class StreamAudioSource:
         self._device = device
         self._block_frames = int(SAMPLE_RATE * block_secs)
 
-    def blocks(self) -> Iterator[npt.NDArray[np.float32]]:
+    def blocks(self) -> Generator[npt.NDArray[np.float32], None, None]:
         import sounddevice
 
         with sounddevice.InputStream(

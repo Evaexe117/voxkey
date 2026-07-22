@@ -82,6 +82,7 @@ def tcp_server() -> Iterator[tuple[tuple[str, int], FakeTranscriber]]:
         try:
             probe.connect(address)
         except OSError:
+            probe.close()
             threading.Event().wait(0.01)
             continue
         else:

@@ -84,7 +84,7 @@ def calibrate(device: int | None, retries: int = DEFAULT_RETRIES) -> float:
         wanted = max(1, int(CALIBRATION_SECS / 0.1))
         for _ in range(wanted):
             levels.append(rms(next(blocks)))
-        blocks.close()  # type: ignore[attr-defined]  # blocks() is a generator
+        blocks.close()
         ambient = sum(levels) / len(levels) if levels else 0.0
         reason = retry_reason(ambient)
         if reason is None or attempt == retries - 1:
