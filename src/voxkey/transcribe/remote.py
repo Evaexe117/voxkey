@@ -42,6 +42,11 @@ class RemoteTranscriber:
         with socket.create_connection(
             self._address, CONNECT_TIMEOUT_SECS
         ) as connection:
+            # create_connection leaves its connect timeout on the socket,
+            # which would otherwise also cap the read below and cut off a
+            # transcription that legitimately takes longer than that to
+            # produce. The connect timeout must not bound the read.
+            connection.settimeout(None)
             connection.sendall(frame)
             connection.shutdown(socket.SHUT_WR)
             chunks: list[bytes] = []

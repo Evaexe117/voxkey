@@ -10,6 +10,9 @@ import pytest
 from voxkey.net.tcp import RemoteError, decode_request, encode_error, encode_response
 from voxkey.transcribe.remote import RemoteTranscriber, parse_address
 
+TEST_CONNECT_TIMEOUT_SECS = 0.5
+SLOW_SERVER_DELAY_SECS = 1.0
+
 
 @pytest.fixture
 def echo_server() -> Iterator[tuple[tuple[str, int], list[str]]]:
@@ -51,6 +54,46 @@ def test_round_trip_against_a_real_socket(
     echo_server: tuple[tuple[str, int], list[str]],
 ) -> None:
     address, received = echo_server
+    transcriber = RemoteTranscriber(address)
+    text = transcriber.transcribe(np.zeros(3, dtype=np.float32), "fr", None)
+    assert text == "heard 3 samples"
+    assert received == ["fr"]
+
+
+@pytest.fixture
+def slow_echo_server() -> Iterator[tuple[tuple[str, int], list[str]]]:
+    """A server that replies well after the connect timeout has elapsed."""
+    received: list[str] = []
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+
+    def serve() -> None:
+        connection, _ = listener.accept()
+        with connection, connection.makefile("rb") as stream:
+            request = decode_request(stream)
+            received.append(request.language)
+            threading.Event().wait(SLOW_SERVER_DELAY_SECS)
+            connection.sendall(encode_response(f"heard {len(request.audio)} samples"))
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    host, port = listener.getsockname()
+    yield (host, port), received
+    thread.join(timeout=5)
+    listener.close()
+
+
+def test_a_reply_slower_than_the_connect_timeout_still_arrives(
+    slow_echo_server: tuple[tuple[str, int], list[str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The connect timeout must not double as a bound on how long the server
+    # is allowed to take to answer.
+    monkeypatch.setattr(
+        "voxkey.transcribe.remote.CONNECT_TIMEOUT_SECS", TEST_CONNECT_TIMEOUT_SECS
+    )
+    address, received = slow_echo_server
     transcriber = RemoteTranscriber(address)
     text = transcriber.transcribe(np.zeros(3, dtype=np.float32), "fr", None)
     assert text == "heard 3 samples"
