@@ -19,8 +19,6 @@ from voxkey.ipc.protocol import DictationRequest
 from voxkey.languages import language_name
 from voxkey.ptt.runner import run_listen
 
-logger = logging.getLogger(__name__)
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
