@@ -106,7 +106,15 @@ class Daemon:
         self._stopping.set()
 
     def _send(self, connection: socket.socket, reply: Reply) -> None:
-        connection.sendall(encode_reply(reply))
+        """Send a reply, tolerating a peer that is already gone.
+
+        A disconnected client must never be able to kill the serve loop: no
+        reply send is allowed to raise.
+        """
+        try:
+            connection.sendall(encode_reply(reply))
+        except OSError as error:
+            logger.debug("client gone, dropping reply: %s", error)
 
     def handle(self, connection: socket.socket) -> None:
         payload = b""

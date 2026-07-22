@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from voxkey.config import Config
@@ -126,6 +127,67 @@ def test_a_malformed_request_yields_an_error_reply(
         client.shutdown(socket.SHUT_WR)
         buffer = client.recv(4096)
     assert isinstance(decode_reply(buffer.strip()), ErrorMessage)
+
+
+class _GatedRecorder:
+    """Blocks record() until told to proceed, so a test can control timing."""
+
+    def __init__(
+        self, ready: threading.Event, clip: npt.NDArray[np.float32]
+    ) -> None:
+        self._ready = ready
+        self._clip = clip
+
+    def record(
+        self,
+        wait_secs: float,  # noqa: ARG002
+        silence_secs: float,  # noqa: ARG002
+    ) -> npt.NDArray[np.float32] | None:
+        self._ready.wait(timeout=5)
+        return self._clip
+
+
+def test_a_client_that_disconnects_before_reading_does_not_kill_the_daemon(
+    xdg: Path,  # noqa: ARG001
+    tmp_path: Path,
+) -> None:
+    socket_path = tmp_path / "disconnect.sock"
+    transcriber = FakeTranscriber(["transcribed text"])
+    ready = threading.Event()
+    recorder = _GatedRecorder(ready, np.ones(160, dtype=np.float32))
+    instance = Daemon(
+        transcriber=transcriber,
+        recorder=recorder,
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(str(socket_path))
+        client.sendall(encode_request(DictationRequest()))
+        client.shutdown(socket.SHUT_WR)
+        # Disconnect before the daemon can reply. record() is still blocked
+        # on `ready`, so this close is guaranteed to land before any of the
+        # daemon's sendall calls.
+        client.close()
+        threading.Event().wait(0.05)
+        ready.set()
+
+        # The daemon must still be alive and able to serve a well-behaved
+        # request afterwards.
+        replies = _dictate(socket_path, DictationRequest())
+        assert replies[-1] == ResultMessage("transcribed text")
+    finally:
+        ready.set()
+        instance.stop()
+        thread.join(timeout=5)
 
 
 def test_two_dictations_in_a_row_both_work(
