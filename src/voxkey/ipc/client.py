@@ -28,16 +28,18 @@ def dictate_once(
     on_status: Callable[[str], None] | None = None,
 ) -> str:
     """Ask the daemon for one dictation and return the text."""
-    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        connection.connect(str(socket_path))
-    except (FileNotFoundError, ConnectionRefusedError) as error:
-        raise DaemonUnavailableError(
-            f"the voxkey daemon is not running on {socket_path}. Start it with "
-            f"'voxkey serve', or 'systemctl --user start voxkey.service'."
-        ) from error
+    # The socket is created inside the with-block so it is closed on every exit
+    # path, including a connect() that raises something other than the two
+    # not-running errors below.
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        try:
+            connection.connect(str(socket_path))
+        except (FileNotFoundError, ConnectionRefusedError) as error:
+            raise DaemonUnavailableError(
+                f"the voxkey daemon is not running on {socket_path}. Start it with "
+                f"'voxkey serve', or 'systemctl --user start voxkey.service'."
+            ) from error
 
-    with connection:
         connection.sendall(encode_request(request))
         connection.shutdown(socket.SHUT_WR)
         buffer = b""

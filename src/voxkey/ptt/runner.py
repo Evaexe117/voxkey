@@ -132,6 +132,10 @@ class DaemonSession:
 
     def abort(self) -> None:
         self._join()
+        # A phantom press throws the result away, but a genuine daemon failure
+        # during it should still leave a trace rather than vanish silently.
+        if self._error is not None:
+            logger.warning("dictation failed during an aborted press: %s", self._error)
 
 
 def run_listen(config: Config) -> int:
