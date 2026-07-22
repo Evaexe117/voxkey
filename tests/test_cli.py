@@ -139,3 +139,32 @@ def test_listen_with_no_keyboard_found_returns_1_instead_of_raising(
     monkeypatch.setattr("voxkey.ptt.keyboard.find_keyboards", _raise)
     assert main(["listen"]) == 1
     assert capsys.readouterr().err.strip()
+
+
+def test_signal_daemon_rejects_a_nonpositive_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from voxkey.cli import _signal_daemon
+
+    pid_file = tmp_path / "pid"
+    killed: list[int] = []
+    monkeypatch.setattr("os.kill", lambda pid, _sig: killed.append(pid))
+    for bad in ("0", "-1"):
+        pid_file.write_text(bad)
+        assert _signal_daemon(pid_file) is False
+    assert killed == []  # never signalled a group
+
+
+def test_signal_daemon_treats_permission_error_as_not_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from voxkey.cli import _signal_daemon
+
+    pid_file = tmp_path / "pid"
+    pid_file.write_text("4242")
+
+    def deny(_pid: int, _sig: int) -> None:
+        raise PermissionError
+
+    monkeypatch.setattr("os.kill", deny)
+    assert _signal_daemon(pid_file) is False

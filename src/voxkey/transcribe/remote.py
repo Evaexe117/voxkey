@@ -11,6 +11,10 @@ from voxkey.net.tcp import RemoteRequest, decode_response, encode_request
 
 RECEIVE_CHUNK = 4096
 CONNECT_TIMEOUT_SECS = 10.0
+# Generous upper bound on the whole read, so a genuinely dead or half-open
+# server is eventually given up on rather than hanging the client forever,
+# while still leaving room for a long transcription on a slow remote.
+READ_TIMEOUT_SECS = 300.0
 
 
 def parse_address(text: str) -> tuple[str, int]:
@@ -45,8 +49,10 @@ class RemoteTranscriber:
             # create_connection leaves its connect timeout on the socket,
             # which would otherwise also cap the read below and cut off a
             # transcription that legitimately takes longer than that to
-            # produce. The connect timeout must not bound the read.
-            connection.settimeout(None)
+            # produce. Replace it with a generous read deadline: long enough
+            # not to interrupt a real transcription, finite so a dead peer does
+            # not hang the client forever.
+            connection.settimeout(READ_TIMEOUT_SECS)
             connection.sendall(frame)
             connection.shutdown(socket.SHUT_WR)
             chunks: list[bytes] = []

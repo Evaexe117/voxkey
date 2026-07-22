@@ -96,9 +96,17 @@ def _signal_daemon(pid_path: Path) -> bool:
         pid = int(pid_path.read_text().strip())
     except (OSError, ValueError):
         return False
+    # A pid of 0 or negative would signal a whole process group, and a
+    # corrupted file must never be trusted that far.
+    if pid <= 0:
+        return False
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
+        return False
+    except PermissionError:
+        # A stale pid file whose number was reused by another user's process:
+        # not our daemon, so report it as not running rather than crashing.
         return False
     return True
 

@@ -160,12 +160,26 @@ def run_tcp_server(
                     text = transcriber.transcribe(
                         request.audio, request.language, request.initial_prompt or None
                     )
-                    connection.sendall(encode_response(text))
+                    _tcp_send(connection, encode_response(text))
                 except (RemoteError, OSError, ValueError) as error:
                     logger.warning("request from %s failed: %s", peer, error)
-                    connection.sendall(encode_error(str(error)))
+                    _tcp_send(connection, encode_error(str(error)))
     finally:
         listener.close()
+
+
+def _tcp_send(connection: socket.socket, payload: bytes) -> None:
+    """Reply to a peer, tolerating one that has already gone away.
+
+    A client that disconnects before reading its reply makes sendall raise, and
+    on the error path that second failure would otherwise escape the accept loop
+    and kill the whole single-threaded server. This is the same guard the Unix
+    daemon applies in Daemon._send.
+    """
+    try:
+        connection.sendall(payload)
+    except OSError as error:
+        logger.debug("reply not delivered, peer gone: %s", error)
 
 
 def format_devices(devices: Sequence[DeviceInfo], keyboards: Sequence[str]) -> str:

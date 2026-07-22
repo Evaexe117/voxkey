@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import struct
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -164,5 +165,61 @@ def test_a_silent_client_does_not_wedge_the_server(
     finally:
         if silent_client is not None:
             silent_client.close()
+        stop.set()
+        thread.join(timeout=5)
+
+
+def test_tcp_server_survives_a_client_that_disconnects_before_reading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runtime, "CONNECTION_TIMEOUT_SECS", 0.3)
+    transcriber = FakeTranscriber(["server heard you"])
+    probe_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe_socket.bind(("127.0.0.1", 0))
+    address = probe_socket.getsockname()
+    probe_socket.close()
+    stop = threading.Event()
+    thread = threading.Thread(
+        target=runtime.run_tcp_server, args=(transcriber, address, stop), daemon=True
+    )
+    thread.start()
+    try:
+        for _ in range(200):
+            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                probe.connect(address)
+            except OSError:
+                probe.close()
+                threading.Event().wait(0.01)
+                continue
+            else:
+                probe.close()
+                break
+
+        # A client that sends a full frame then closes without reading the
+        # reply: the server's sendall must not crash the accept loop.
+        frame = encode_request(
+            RemoteRequest("fr", "Terms: a.", np.ones(4, dtype=np.float32))
+        )
+        rude = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        rude.connect(address)
+        rude.sendall(frame)
+        rude.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+        rude.close()  # RST, so the server's reply send fails
+        threading.Event().wait(0.2)
+
+        # A well-behaved client must still be served afterwards.
+        with socket.create_connection(address, 5) as connection:
+            connection.sendall(frame)
+            connection.shutdown(socket.SHUT_WR)
+            payload = b""
+            while True:
+                chunk = connection.recv(4096)
+                if not chunk:
+                    break
+                payload += chunk
+        assert decode_response(payload) == "server heard you"
+        assert thread.is_alive()
+    finally:
         stop.set()
         thread.join(timeout=5)
