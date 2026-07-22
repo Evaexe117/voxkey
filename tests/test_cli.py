@@ -111,3 +111,31 @@ def test_command_stop_reports_when_the_daemon_is_not_running(
 ) -> None:
     assert _command_stop() == 1
     assert "not running" in capsys.readouterr().err
+
+
+def test_listen_with_an_unresolvable_key_returns_1_instead_of_raising(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def _raise(name: str) -> int:
+        raise ValueError(f"unknown key name: {name}")
+
+    monkeypatch.setattr("voxkey.ptt.runner.resolve_key", _raise)
+    assert main(["listen"]) == 1
+    assert capsys.readouterr().err.strip()
+
+
+def test_listen_with_no_keyboard_found_returns_1_instead_of_raising(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from voxkey.ptt.keyboard import NoKeyboardError
+
+    def _raise() -> list[str]:
+        raise NoKeyboardError("no keyboard found")
+
+    monkeypatch.setattr("voxkey.ptt.keyboard.find_keyboards", _raise)
+    assert main(["listen"]) == 1
+    assert capsys.readouterr().err.strip()

@@ -20,6 +20,7 @@ from voxkey.i18n import _, setup
 from voxkey.ipc.client import DaemonUnavailableError, dictate_once
 from voxkey.ipc.protocol import DictationRequest
 from voxkey.languages import language_name
+from voxkey.ptt.keyboard import NoKeyboardError
 from voxkey.ptt.runner import run_listen
 
 
@@ -141,7 +142,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         case "serve":
             return runtime.run_serve(config, listen=args.listen, remote=args.remote)
         case "listen":
-            return run_listen(config)
+            try:
+                return run_listen(config)
+            except (ValueError, NoKeyboardError) as error:
+                print(str(error), file=sys.stderr)
+                return 1
         case "devices":
             return runtime.run_devices()
         case _:
