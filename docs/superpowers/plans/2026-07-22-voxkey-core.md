@@ -3473,7 +3473,7 @@ constant and a comment."
 
 **Interfaces:**
 - Consumes: `voxkey.ipc.protocol`, `voxkey.transcribe.base.Transcriber`, `voxkey.audio.capture`, `voxkey.state`.
-- Produces: `Recorder` Protocol with `record(wait_secs: float, silence_secs: float) -> npt.NDArray[np.float32] | None`. `FakeRecorder(clips)`. `Daemon(transcriber, recorder, socket_path, config)` with `serve_forever() -> None`, `handle(connection) -> None`, `stop() -> None`. `run_daemon(...) -> None`.
+- Produces: `Recorder` Protocol with `record(wait_secs: float, silence_secs: float) -> npt.NDArray[np.float32] | None`. `FakeRecorder(clips)`. `Daemon(transcriber, recorder, socket_path, config)` with `serve_forever() -> None`, `handle(connection) -> None`, `stop() -> None`. (An earlier draft named a `run_daemon(...)` wrapper here; it is never defined or used anywhere. Task 17's `run_serve` constructs `Daemon` and calls `serve_forever` directly, so no wrapper exists.)
 
 - [ ] **Step 1: Write the failing test**
 
