@@ -22,7 +22,6 @@ import numpy.typing as npt
 
 HEADER_LENGTH_FORMAT = ">I"
 HEADER_LENGTH_SIZE = 4
-BYTES_PER_SAMPLE = 4
 
 
 class RemoteError(RuntimeError):
@@ -65,8 +64,25 @@ def _read_exactly(stream: IO[bytes], size: int) -> bytes:
 def decode_request(stream: IO[bytes]) -> RemoteRequest:
     raw_length = _read_exactly(stream, HEADER_LENGTH_SIZE)
     (header_length,) = struct.unpack(HEADER_LENGTH_FORMAT, raw_length)
-    header = json.loads(_read_exactly(stream, header_length).decode())
-    payload = _read_exactly(stream, int(header["audio_length"]))
+    raw_header = _read_exactly(stream, header_length).decode()
+    try:
+        header = json.loads(raw_header)
+    except json.JSONDecodeError as error:
+        raise RemoteError(f"invalid header: not valid JSON: {error}") from error
+    if not isinstance(header, dict):
+        raise RemoteError(
+            "invalid header: expected a JSON object, "
+            f"got {type(header).__name__}"
+        )
+    try:
+        audio_length = int(header["audio_length"])
+    except KeyError as error:
+        raise RemoteError("invalid header: missing audio_length") from error
+    if audio_length < 0:
+        raise RemoteError(
+            f"invalid header: audio_length must not be negative, got {audio_length}"
+        )
+    payload = _read_exactly(stream, audio_length)
     audio: npt.NDArray[np.float32] = np.frombuffer(payload, dtype=np.float32)
     return RemoteRequest(
         language=str(header.get("language", "en")),
@@ -87,7 +103,15 @@ def decode_response(payload: bytes) -> str:
     text = payload.decode().strip()
     if not text:
         raise RemoteError("empty response from the transcription server")
-    message = json.loads(text)
+    try:
+        message = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise RemoteError(f"invalid response: not valid JSON: {error}") from error
+    if not isinstance(message, dict):
+        raise RemoteError(
+            "invalid response: expected a JSON object, "
+            f"got {type(message).__name__}"
+        )
     if "error" in message:
         raise RemoteError(str(message["error"]))
     return str(message.get("text", ""))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import struct
 
 import numpy as np
@@ -66,3 +67,50 @@ def test_error_response_raises() -> None:
 def test_empty_response_is_reported() -> None:
     with pytest.raises(RemoteError, match="empty"):
         decode_response(b"")
+
+
+def _frame_with_header_bytes(header: bytes) -> bytes:
+    return struct.pack(">I", len(header)) + header
+
+
+def test_invalid_json_header_is_reported() -> None:
+    frame = _frame_with_header_bytes(b"not json")
+    with pytest.raises(RemoteError, match="header"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_header_that_is_a_json_array_is_reported() -> None:
+    frame = _frame_with_header_bytes(b"[1, 2, 3]")
+    with pytest.raises(RemoteError, match="header"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_header_missing_audio_length_is_reported() -> None:
+    header = json.dumps({"language": "en", "initial_prompt": ""}).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="audio_length"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_negative_audio_length_is_reported() -> None:
+    header = json.dumps(
+        {"language": "en", "initial_prompt": "", "audio_length": -4}
+    ).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="audio_length"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_non_json_response_is_reported() -> None:
+    with pytest.raises(RemoteError, match="response"):
+        decode_response(b"not json\n")
+
+
+def test_response_that_is_a_json_array_is_reported() -> None:
+    with pytest.raises(RemoteError, match="response"):
+        decode_response(b"[1, 2, 3]\n")
+
+
+def test_response_that_is_a_bare_number_is_reported() -> None:
+    with pytest.raises(RemoteError, match="response"):
+        decode_response(b"42\n")
