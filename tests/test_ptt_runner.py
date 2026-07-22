@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from voxkey.ptt.machine import KeyEvent
 from voxkey.ptt.runner import FakeSession, run_push_to_talk
 
@@ -75,3 +77,29 @@ def test_a_failing_session_does_not_stop_the_loop() -> None:
         delivered.append,
     )
     assert delivered == ["ok"]
+
+
+def test_delivery_chimes_success_when_the_copy_lands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from voxkey.output import clipboard, sound
+    from voxkey.ptt.runner import deliver_to_clipboard
+
+    played: list[str] = []
+    monkeypatch.setattr(clipboard, "copy", lambda _text: True)
+    monkeypatch.setattr(sound, "play", lambda path: played.append(str(path)))
+    deliver_to_clipboard("hello")
+    assert played == [str(sound.SOUND_COMPLETE)]
+
+
+def test_delivery_rings_the_bell_when_the_copy_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from voxkey.output import clipboard, sound
+    from voxkey.ptt.runner import deliver_to_clipboard
+
+    played: list[str] = []
+    monkeypatch.setattr(clipboard, "copy", lambda _text: False)
+    monkeypatch.setattr(sound, "play", lambda path: played.append(str(path)))
+    deliver_to_clipboard("hello")
+    assert played == [str(sound.SOUND_BELL)]

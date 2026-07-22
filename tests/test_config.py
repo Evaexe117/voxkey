@@ -104,3 +104,15 @@ def test_load_reports_the_path_on_malformed_toml(xdg: Path) -> None:  # noqa: AR
     with pytest.raises(ConfigError) as excinfo:
         load()
     assert str(paths.config_file()) in str(excinfo.value)
+
+
+def test_nan_duration_is_rejected() -> None:
+    for key in ("pre_buffer_secs", "silence_secs", "wait_secs"):
+        with pytest.raises(ConfigError, match="finite"):
+            parse({key: float("nan")})
+
+
+def test_infinite_duration_is_rejected() -> None:
+    for key in ("pre_buffer_secs", "silence_secs", "wait_secs"):
+        with pytest.raises(ConfigError, match="finite"):
+            parse({key: float("inf")})

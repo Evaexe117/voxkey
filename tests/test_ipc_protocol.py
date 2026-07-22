@@ -107,3 +107,10 @@ def test_reply_precedence_is_status_then_text_then_error() -> None:
 def test_status_wire_shape_matches_dictate() -> None:
     assert encode_reply(StatusMessage("recording")) == b'{"status": "recording"}\n'
     assert encode_reply(ResultMessage("hi")) == b'{"text": "hi"}\n'
+
+
+def test_non_finite_duration_is_rejected() -> None:
+    for payload in (b'{"language":"en","wait_secs":NaN}',
+                    b'{"language":"en","silence_secs":Infinity}'):
+        with pytest.raises(ProtocolError, match="finite"):
+            decode_request(payload)

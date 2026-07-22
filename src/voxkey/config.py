@@ -7,6 +7,7 @@ naming the key, what was expected and what was found.
 
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -52,7 +53,13 @@ def _as_number(key: str, value: object) -> float:
         raise ConfigError(
             f"{key}: expected a number, found {type(value).__name__}"
         )
-    return float(value)
+    number = float(value)
+    # TOML allows nan and inf literals. NaN <= 0 is False, so without this a
+    # non-finite duration slips past the positivity check and then disables the
+    # silence detector (now - last_speech >= nan is never true).
+    if not math.isfinite(number):
+        raise ConfigError(f"{key}: expected a finite number, found {number}")
+    return number
 
 
 def _as_bool(key: str, value: object) -> bool:

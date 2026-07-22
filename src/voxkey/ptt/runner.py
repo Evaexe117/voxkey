@@ -138,6 +138,19 @@ class DaemonSession:
             logger.warning("dictation failed during an aborted press: %s", self._error)
 
 
+def deliver_to_clipboard(text: str) -> None:
+    """Copy the transcript and chime according to whether the copy succeeded.
+
+    The chime must reflect what actually happened: if the copy failed (xsel
+    missing, for instance) the transcript is lost, so ring the warning sound
+    rather than the "done" chime that would say it landed on the clipboard.
+    """
+    if clipboard.copy(text):
+        sound.play(sound.SOUND_COMPLETE)
+    else:
+        sound.play(sound.SOUND_BELL)
+
+
 def run_listen(config: Config) -> int:
     """Read the push-to-talk key and deliver dictations to the clipboard."""
     from voxkey.ptt.keyboard import find_keyboards
@@ -147,10 +160,8 @@ def run_listen(config: Config) -> int:
     language = state.get_language(config)
     session = DaemonSession(paths.socket_file(), language)
 
-    def deliver(text: str) -> None:
-        clipboard.copy(text)
-        sound.play(sound.SOUND_COMPLETE)
-
     logger.info("holding %s dictates, reading %s", config.key, device_path)
-    run_push_to_talk(key_events(device_path, key_code), session, deliver)
+    run_push_to_talk(
+        key_events(device_path, key_code), session, deliver_to_clipboard
+    )
     return 0

@@ -10,6 +10,7 @@ still understand each other.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from typing import assert_never
 
@@ -77,8 +78,11 @@ def _as_optional_positive_number(key: str, value: object) -> float | None:
             f"{key}: expected a number, found {type(value).__name__}"
         )
     number = float(value)
-    if number <= 0:
-        raise ProtocolError(f"{key}: expected a positive number, found {number}")
+    # json.loads accepts NaN and Infinity, and NaN <= 0 is False, so guard for
+    # finiteness before the positivity check: a non-finite duration would slip
+    # through and disable the daemon's silence detector.
+    if not math.isfinite(number) or number <= 0:
+        raise ProtocolError(f"{key}: expected a finite positive number, found {number}")
     return number
 
 
