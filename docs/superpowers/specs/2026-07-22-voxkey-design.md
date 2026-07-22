@@ -254,10 +254,10 @@ line flag, so setting it in the TOML file does nothing. In voxkey every
 setting is readable from the file, and the command line overrides the file
 for all of them.
 
-Language names shown in notifications are derived from the language code
-through the standard library rather than read from a hardcoded table, which
-today lists eight languages and silently falls back to the raw code for every
-other one.
+Language names shown in notifications come from a `languages` module covering
+the codes Whisper supports, and each name passes through the translation
+catalogue. The current script carries a table of eight names inline in
+`set_language` and silently shows the raw code for everything else.
 
 `log_transcripts` stays off by default. The daemon and the push-to-talk client
 both run under systemd, so anything they print reaches journald. With the
