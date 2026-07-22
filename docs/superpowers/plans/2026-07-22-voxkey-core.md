@@ -697,9 +697,28 @@ def test_setup_falls_back_when_the_language_has_no_catalogue(tmp_path: Path) -> 
     assert i18n._("Recording") == "Recording"
 
 
-def test_shipped_french_catalogue_compiles() -> None:
+def test_accented_translations_survive_compilation() -> None:
+    # The catalogue exists to carry accented French. A compiler that mangles
+    # it is worse than no compiler, and ASCII-only fixtures hide the damage.
+    po = (
+        'msgid ""\n'
+        'msgstr "Content-Type: text/plain; charset=UTF-8\\n"\n'
+        "\n"
+        'msgid "No speech detected"\n'
+        'msgstr "Aucune parole détectée"\n'
+    )
+    assert "Aucune parole détectée".encode() in compile_po(po)
+
+
+def test_escape_sequences_are_resolved() -> None:
+    po = 'msgid "a"\nmsgstr "one\\ttwo\\nthree"\n'
+    assert b"one\ttwo\nthree" in compile_po(po)
+
+
+def test_shipped_french_catalogue_compiles_with_its_accents() -> None:
     po = Path("src/voxkey/locales/fr/LC_MESSAGES/voxkey.po").read_text()
-    assert compile_po(po)
+    compiled = compile_po(po)
+    assert "Aucune parole détectée".encode() in compiled
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -727,9 +746,30 @@ from pathlib import Path
 
 MAGIC = 0x950412DE
 
+# The escapes gettext defines inside a quoted PO string.
+_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\"}
+
 
 def _unquote(text: str) -> str:
-    return text.encode().decode("unicode_escape")
+    """Resolve PO escape sequences without touching anything else.
+
+    The obvious shortcut, ``text.encode().decode("unicode_escape")``, silently
+    mangles every non-ASCII character: it encodes as UTF-8 and decodes as
+    Latin-1, so "détectée" comes back as mojibake. Accented translations are
+    the entire point of shipping a French catalogue, so the escapes are
+    resolved by hand instead.
+    """
+    out: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "\\" and index + 1 < len(text):
+            index += 1
+            out.append(_ESCAPES.get(text[index], text[index]))
+        else:
+            out.append(char)
+        index += 1
+    return "".join(out)
 
 
 def parse_po(po_text: str) -> dict[str, str]:
