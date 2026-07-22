@@ -44,7 +44,7 @@ def pick_defaults(has_cuda: bool) -> ModelChoice:
 
 def detect_cuda() -> bool:
     try:
-        import ctranslate2  # type: ignore[import-untyped]
+        import ctranslate2
     except ImportError:
         return False
     try:

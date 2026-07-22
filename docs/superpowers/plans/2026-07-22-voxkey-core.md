@@ -181,7 +181,7 @@ strict = true
 files = ["src", "tests", "tools"]
 
 [[tool.mypy.overrides]]
-module = ["sounddevice", "evdev", "faster_whisper"]
+module = ["sounddevice", "evdev", "faster_whisper", "ctranslate2"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
