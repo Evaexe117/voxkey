@@ -114,3 +114,36 @@ def test_response_that_is_a_json_array_is_reported() -> None:
 def test_response_that_is_a_bare_number_is_reported() -> None:
     with pytest.raises(RemoteError, match="response"):
         decode_response(b"42\n")
+
+
+def test_audio_length_string_is_reported() -> None:
+    header = json.dumps(
+        {"language": "en", "initial_prompt": "", "audio_length": "abc"}
+    ).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="audio_length"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_audio_length_list_is_reported() -> None:
+    header = json.dumps(
+        {"language": "en", "initial_prompt": "", "audio_length": [1]}
+    ).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="audio_length"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_audio_length_null_is_reported() -> None:
+    header = json.dumps(
+        {"language": "en", "initial_prompt": "", "audio_length": None}
+    ).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="audio_length"):
+        decode_request(io.BytesIO(frame))
+
+
+def test_non_utf8_header_is_reported() -> None:
+    frame = _frame_with_header_bytes(b"\xff\xfe invalid utf8")
+    with pytest.raises(RemoteError, match="UTF-8"):
+        decode_request(io.BytesIO(frame))

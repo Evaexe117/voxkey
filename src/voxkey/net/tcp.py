@@ -64,7 +64,11 @@ def _read_exactly(stream: IO[bytes], size: int) -> bytes:
 def decode_request(stream: IO[bytes]) -> RemoteRequest:
     raw_length = _read_exactly(stream, HEADER_LENGTH_SIZE)
     (header_length,) = struct.unpack(HEADER_LENGTH_FORMAT, raw_length)
-    raw_header = _read_exactly(stream, header_length).decode()
+    raw_header_bytes = _read_exactly(stream, header_length)
+    try:
+        raw_header = raw_header_bytes.decode()
+    except UnicodeDecodeError as error:
+        raise RemoteError("invalid header: not valid UTF-8") from error
     try:
         header = json.loads(raw_header)
     except json.JSONDecodeError as error:
@@ -78,6 +82,12 @@ def decode_request(stream: IO[bytes]) -> RemoteRequest:
         audio_length = int(header["audio_length"])
     except KeyError as error:
         raise RemoteError("invalid header: missing audio_length") from error
+    except (ValueError, TypeError) as error:
+        value = header["audio_length"]
+        raise RemoteError(
+            f"invalid header: audio_length must be a number, "
+            f"got {type(value).__name__}"
+        ) from error
     if audio_length < 0:
         raise RemoteError(
             f"invalid header: audio_length must not be negative, got {audio_length}"
