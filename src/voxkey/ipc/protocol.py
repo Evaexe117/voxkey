@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from typing import assert_never
 
 STATUS_RECORDING = "recording"
 STATUS_TRANSCRIBING = "transcribing"
@@ -57,6 +58,30 @@ def encode_request(request: DictationRequest) -> bytes:
     return json.dumps(body).encode()
 
 
+def _as_optional_str(key: str, value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ProtocolError(
+            f"{key}: expected a string, found {type(value).__name__}"
+        )
+    return value
+
+
+def _as_optional_positive_number(key: str, value: object) -> float | None:
+    if value is None:
+        return None
+    # bool is a subclass of int, and "wait_secs = true" is always a mistake.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolError(
+            f"{key}: expected a number, found {type(value).__name__}"
+        )
+    number = float(value)
+    if number <= 0:
+        raise ProtocolError(f"{key}: expected a positive number, found {number}")
+    return number
+
+
 def decode_request(payload: bytes) -> DictationRequest:
     try:
         body = json.loads(payload.decode() or "{}")
@@ -66,9 +91,11 @@ def decode_request(payload: bytes) -> DictationRequest:
         raise ProtocolError("request must be a JSON object")
     return DictationRequest(
         language=str(body.get("language", "en")),
-        initial_prompt=body.get("initial_prompt"),
-        wait_secs=body.get("wait_secs"),
-        silence_secs=body.get("silence_secs"),
+        initial_prompt=_as_optional_str("initial_prompt", body.get("initial_prompt")),
+        wait_secs=_as_optional_positive_number("wait_secs", body.get("wait_secs")),
+        silence_secs=_as_optional_positive_number(
+            "silence_secs", body.get("silence_secs")
+        ),
     )
 
 
@@ -80,10 +107,18 @@ def encode_reply(reply: Reply) -> bytes:
             body = {"text": text}
         case ErrorMessage(message):
             body = {"error": message}
+        case _:
+            assert_never(reply)
     return json.dumps(body).encode() + b"\n"
 
 
 def decode_reply(payload: bytes) -> Reply:
+    """Decode one newline delimited JSON reply.
+
+    A reply is classified by which known key it carries. If more than one is
+    present, "status" wins over "text", which wins over "error"; only the
+    first match is used and the rest are ignored.
+    """
     try:
         body = json.loads(payload.decode())
     except (ValueError, UnicodeDecodeError) as error:

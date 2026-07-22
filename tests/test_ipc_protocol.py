@@ -36,6 +36,43 @@ def test_malformed_request_is_reported() -> None:
         decode_request(b"not json")
 
 
+def test_request_rejects_non_string_initial_prompt() -> None:
+    with pytest.raises(ProtocolError):
+        decode_request(b'{"language":"en","initial_prompt":42}')
+
+
+def test_request_rejects_non_numeric_wait_secs() -> None:
+    with pytest.raises(ProtocolError):
+        decode_request(b'{"language":"en","wait_secs":"five"}')
+
+
+def test_request_rejects_non_numeric_silence_secs() -> None:
+    with pytest.raises(ProtocolError):
+        decode_request(b'{"language":"en","silence_secs":"five"}')
+
+
+def test_request_rejects_bool_wait_secs() -> None:
+    with pytest.raises(ProtocolError):
+        decode_request(b'{"language":"en","wait_secs":true}')
+
+
+def test_request_rejects_zero_or_negative_wait_secs() -> None:
+    with pytest.raises(ProtocolError):
+        decode_request(b'{"language":"en","wait_secs":0}')
+    with pytest.raises(ProtocolError):
+        decode_request(b'{"language":"en","wait_secs":-1.0}')
+
+
+def test_request_accepts_null_optional_fields() -> None:
+    decoded = decode_request(
+        b'{"language":"en","initial_prompt":null,'
+        b'"wait_secs":null,"silence_secs":null}'
+    )
+    assert decoded.initial_prompt is None
+    assert decoded.wait_secs is None
+    assert decoded.silence_secs is None
+
+
 def test_status_reply_round_trips() -> None:
     assert decode_reply(encode_reply(StatusMessage(STATUS_RECORDING))) == StatusMessage(
         STATUS_RECORDING
@@ -58,6 +95,13 @@ def test_every_reply_is_newline_terminated() -> None:
 def test_reply_without_a_known_field_is_reported() -> None:
     with pytest.raises(ProtocolError):
         decode_reply(b'{"unexpected": 1}')
+
+
+def test_reply_precedence_is_status_then_text_then_error() -> None:
+    assert decode_reply(b'{"status": "recording", "text": "x", "error": "y"}') == (
+        StatusMessage("recording")
+    )
+    assert decode_reply(b'{"text": "x", "error": "y"}') == ResultMessage("x")
 
 
 def test_status_wire_shape_matches_dictate() -> None:
