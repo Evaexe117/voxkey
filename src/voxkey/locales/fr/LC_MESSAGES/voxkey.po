@@ -1,0 +1,17 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: voxkey 0.1.0\n"
+"Language: fr\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Recording"
+msgstr "Enregistrement"
+
+msgid "Transcribing"
+msgstr "Transcription"
+
+msgid "No speech detected"
+msgstr "Aucune parole détectée"
+
+msgid "Language: {name} ({code})"
+msgstr "Langue : {name} ({code})"
