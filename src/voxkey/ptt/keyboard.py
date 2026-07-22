@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 
-from voxkey.ppt.machine import KeyEvent
+from voxkey.ptt.machine import KeyEvent
 
 logger = logging.getLogger(__name__)
 

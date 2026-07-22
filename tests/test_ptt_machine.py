@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from voxkey.ppt.machine import MIN_HOLD_SECS, HoldDecision, HoldMachine, KeyEvent
+from voxkey.ptt.machine import MIN_HOLD_SECS, HoldDecision, HoldMachine, KeyEvent
 
 
 def test_a_genuine_dictation_is_accepted() -> None:
