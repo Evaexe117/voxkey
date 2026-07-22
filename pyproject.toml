@@ -7,7 +7,7 @@ name = "voxkey"
 version = "0.1.0"
 description = "Push-to-talk dictation for Linux, transcribed locally"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [{ name = "Evaexe117" }]
 keywords = ["dictation", "speech-to-text", "whisper", "push-to-talk", "linux"]
@@ -16,7 +16,6 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
@@ -43,17 +42,12 @@ packages = ["src/voxkey"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PTH", "RET", "SIM", "ARG"]
 
 [tool.mypy]
-# Pinned to 3.12 although the package supports 3.11: the type stubs
-# numpy ships use PEP 695 "type" statements, which mypy refuses to
-# parse under python_version = "3.11". Compatibility with 3.11 is
-# guarded instead by ruff (target-version = "py311") for syntax and by
-# the CI matrix for runtime.
 python_version = "3.12"
 strict = true
 files = ["src", "tests", "tools"]

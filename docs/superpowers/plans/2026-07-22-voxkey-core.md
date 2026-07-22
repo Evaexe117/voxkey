@@ -6,7 +6,7 @@
 
 **Architecture:** Code that touches hardware is reduced to thin shells behind a Protocol; all decision logic lives in pure functions and state machines that tests drive directly. A daemon holds the Whisper model resident behind a Unix socket; clients are cheap and restartable. Transcription is an interchangeable implementation, local or remote or fake.
 
-**Tech Stack:** Python 3.11+, faster-whisper, sounddevice, numpy, evdev, stdlib `tomllib`, `gettext`, `argparse`, `socket`. pytest, ruff, mypy. Hatchling for packaging.
+**Tech Stack:** Python 3.12+, faster-whisper, sounddevice, numpy, evdev, stdlib `tomllib`, `gettext`, `argparse`, `socket`. pytest, ruff, mypy. Hatchling for packaging.
 
 This is plan 1 of 3. Plan 2 covers the tray and the GTK control window. Plan 3 covers packaging, migration, documentation and publication. This plan produces working, installable software on its own.
 
@@ -14,7 +14,7 @@ Source of truth: `docs/superpowers/specs/2026-07-22-voxkey-design.md`.
 
 ## Global Constraints
 
-- **Python 3.11 minimum.** `tomllib` is stdlib from 3.11, so the `tomli` dependency of the current project disappears. CI runs 3.11, 3.12, 3.13.
+- **Python 3.12 minimum.** `tomllib` is stdlib from 3.11, so the `tomli` dependency of the current project disappears. The floor is 3.12 rather than 3.11 because the type stubs numpy ships use PEP 695 `type` statements, which mypy cannot parse under `python_version = "3.11"`. CI runs 3.12 and 3.13.
 - **Every module passes `ruff check` and `mypy --strict`.** No `Any` escapes without a comment naming the third-party stub gap that forces it.
 - **English only** in code, docstrings, comments, log messages and test names. Human-facing strings are wrapped in `_()` from `voxkey.i18n`; log messages are not.
 - **No test may require** a microphone, a keyboard, a GPU, an X server, a network peer, or a real Whisper model. Tests that would need one use the doubles built in Tasks 8, 12 and 15.
@@ -135,7 +135,7 @@ name = "voxkey"
 version = "0.1.0"
 description = "Push-to-talk dictation for Linux, transcribed locally"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 authors = [{ name = "Evaexe117" }]
 keywords = ["dictation", "speech-to-text", "whisper", "push-to-talk", "linux"]
@@ -144,7 +144,6 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
@@ -171,13 +170,13 @@ packages = ["src/voxkey"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PTH", "RET", "SIM", "ARG"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 files = ["src", "tests", "tools"]
 
@@ -320,7 +319,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -4744,7 +4743,7 @@ they mean something and the parser rejects them elsewhere."
 
 ## Definition of done for this plan
 
-- [ ] `pytest` passes with no skipped tests on Python 3.11, 3.12 and 3.13.
+- [ ] `pytest` passes with no skipped tests on Python 3.12 and 3.13.
 - [ ] `ruff check .` and `mypy` are clean.
 - [ ] `voxkey once` produces text through a daemon started by `voxkey serve` on the developer's machine, verified by hand.
 - [ ] No test touches a microphone, a keyboard, a GPU, an X server or an outside network host.

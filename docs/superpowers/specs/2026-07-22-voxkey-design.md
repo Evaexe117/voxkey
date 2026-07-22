@@ -356,8 +356,9 @@ one first and `install.sh` detects the architecture, installs that wheel, skips
 `nvidia-cublas-cu12` since CUDA comes from JetPack, and points the launcher at
 `/usr/local/cuda/lib64`.
 
-CI on GitHub Actions: `ruff`, `mypy --strict`, `pytest`, on Python 3.11, 3.12
-and 3.13.
+CI on GitHub Actions: `ruff`, `mypy --strict`, `pytest`, on Python 3.12 and
+3.13. The floor is 3.12, not 3.11: the type stubs numpy ships use PEP 695
+`type` statements, which mypy cannot parse under `python_version = "3.11"`.
 
 ## 12. Claude Code integration
 
