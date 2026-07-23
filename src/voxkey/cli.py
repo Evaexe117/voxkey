@@ -172,7 +172,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         case "listen":
             try:
                 return run_listen(config)
-            except (ValueError, NoKeyboardError) as error:
+            except (ValueError, NoKeyboardError, OSError) as error:
+                # OSError covers the keyboard disconnecting mid-read (evdev
+                # raises ENODEV): print a line and exit rather than a traceback,
+                # matching how the daemon handles the microphone vanishing.
                 print(str(error), file=sys.stderr)
                 return 1
         case "devices":

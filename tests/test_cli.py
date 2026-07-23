@@ -208,3 +208,18 @@ def test_lang_does_not_warn_on_a_known_code(
 
     cli._command_lang("fr", "en", ["en", "fr"])
     assert "known language code" not in capsys.readouterr().err
+
+
+def test_listen_reports_a_keyboard_disconnect_mid_read(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The keyboard vanishing mid-read makes evdev raise OSError. voxkey listen
+    # must print a line and exit 1, not crash with a traceback.
+    def _raise() -> list[str]:
+        raise OSError(19, "No such device")
+
+    monkeypatch.setattr("voxkey.ptt.keyboard.find_keyboards", _raise)
+    assert main(["listen"]) == 1
+    assert capsys.readouterr().err.strip()

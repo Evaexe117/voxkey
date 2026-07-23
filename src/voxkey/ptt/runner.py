@@ -66,7 +66,13 @@ def run_push_to_talk(
     deliver: Callable[[str], None],
     min_hold_secs: float = MIN_HOLD_SECS,
 ) -> None:
-    """Turn key holds into delivered text. Never raises on a single failure."""
+    """Turn key holds into delivered text.
+
+    A single failed dictation is caught and logged so the loop keeps running.
+    A failure of the event source itself (the keyboard disconnecting, so evdev
+    raises) is not swallowed here: it propagates to run_listen and the CLI,
+    which report it and exit, since there is no keyboard left to read.
+    """
     machine = HoldMachine(min_hold_secs=min_hold_secs)
     for event in events:
         decision = machine.feed(event)
