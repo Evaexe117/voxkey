@@ -414,3 +414,36 @@ def test_daemon_survives_a_deeply_nested_json_request(
     # The daemon must still serve a normal request afterwards.
     replies = _dictate(socket_path, DictationRequest(language="en"))
     assert any(isinstance(reply, ResultMessage) for reply in replies)
+
+
+def test_daemon_is_not_wedged_by_a_silent_peer(
+    xdg: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch  # noqa: ARG001
+) -> None:
+    monkeypatch.setattr(server_module, "CONNECTION_TIMEOUT_SECS", 0.3)
+    socket_path = tmp_path / "silent.sock"
+    instance = Daemon(
+        transcriber=FakeTranscriber(["ok"]),
+        recorder=FakeRecorder([np.ones(160, dtype=np.float32)]),
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    silent: socket.socket | None = None
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+        # A peer that connects and never sends must not wedge the daemon.
+        silent = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        silent.connect(str(socket_path))
+        # A well-behaved client, right after, must still be served.
+        replies = _dictate(socket_path, DictationRequest(language="en"))
+        assert any(isinstance(reply, ResultMessage) for reply in replies)
+        assert thread.is_alive()
+    finally:
+        if silent is not None:
+            silent.close()
+        instance.stop()
+        thread.join(timeout=5)

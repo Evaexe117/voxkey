@@ -160,7 +160,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         case "stop":
             return _command_stop()
         case "serve":
-            return runtime.run_serve(config, listen=args.listen, remote=args.remote)
+            try:
+                return runtime.run_serve(
+                    config, listen=args.listen, remote=args.remote
+                )
+            except (ValueError, OverflowError) as error:
+                # A malformed --listen/--remote (bad shape, or a port out of
+                # range) must print a line, not a startup traceback.
+                print(str(error), file=sys.stderr)
+                return 1
         case "listen":
             try:
                 return run_listen(config)

@@ -21,7 +21,12 @@ def parse_address(text: str) -> tuple[str, int]:
     host, separator, port = text.rpartition(":")
     if not separator or not host or not port.isdigit():
         raise ValueError(f"expected HOST:PORT, found {text!r}")
-    return host, int(port)
+    number = int(port)
+    # isdigit() accepts arbitrarily large values; reject an out-of-range port
+    # here with a clear message rather than letting bind() raise OverflowError.
+    if not 1 <= number <= 65535:
+        raise ValueError(f"port out of range (1-65535): {number}")
+    return host, number
 
 
 class RemoteTranscriber:

@@ -120,3 +120,10 @@ def test_server_error_surfaces_as_remote_error() -> None:
     finally:
         thread.join(timeout=5)
         listener.close()
+
+
+def test_parse_address_rejects_an_out_of_range_port() -> None:
+    with pytest.raises(ValueError, match="out of range"):
+        parse_address("host:99999999999")
+    with pytest.raises(ValueError, match="out of range"):
+        parse_address("host:0")

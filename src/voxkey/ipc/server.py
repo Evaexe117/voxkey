@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 
 RECEIVE_CHUNK = 4096
 ACCEPT_TIMEOUT_SECS = 0.2
+# An accepted connection gets its own read deadline. Without it a same-user peer
+# that connects and never sends EOF blocks the single-threaded recv loop forever,
+# wedging the daemon so the push-to-talk key stops working. The TCP server guards
+# the identical case; this is its Unix sibling.
+CONNECTION_TIMEOUT_SECS = 30.0
 #: The request is a small JSON object; 1 MiB is generous.
 MAX_REQUEST_BYTES = 1024 * 1024
 
@@ -97,6 +102,7 @@ class Daemon:
                     connection, _ = listener.accept()
                 except TimeoutError:
                     continue
+                connection.settimeout(CONNECTION_TIMEOUT_SECS)
                 with connection:
                     self.handle(connection)
         finally:
@@ -121,7 +127,13 @@ class Daemon:
     def handle(self, connection: socket.socket) -> None:
         payload = b""
         while True:
-            chunk = connection.recv(RECEIVE_CHUNK)
+            try:
+                chunk = connection.recv(RECEIVE_CHUNK)
+            except OSError as error:
+                # A read timeout (silent peer) or a reset drops this connection;
+                # it must never escape and kill the serve loop.
+                logger.warning("dropping a stalled or broken connection: %s", error)
+                return
             if not chunk:
                 break
             payload += chunk
