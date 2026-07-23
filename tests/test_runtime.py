@@ -223,3 +223,89 @@ def test_tcp_server_survives_a_client_that_disconnects_before_reading(
     finally:
         stop.set()
         thread.join(timeout=5)
+
+
+class _FakePersistentSource:
+    """A never-ending AudioSource for StreamRecorder tests.
+
+    Yields loud blocks for the first `loud_blocks`, then silence forever, pacing
+    each block with a real sleep so the wall clock the recorder reads advances.
+    Records how many blocks it produced so a test can prove the reader stopped.
+    """
+
+    def __init__(self, loud_blocks: int, block_pause: float = 0.02) -> None:
+        self._loud_blocks = loud_blocks
+        self._block_pause = block_pause
+        self.produced = 0
+
+    def blocks(self) -> Iterator[np.ndarray]:
+        import time
+
+        while True:
+            if self.produced < self._loud_blocks:
+                block = np.full(160, 0.5, dtype=np.float32)
+            else:
+                block = np.zeros(160, dtype=np.float32)
+            self.produced += 1
+            yield block
+            time.sleep(self._block_pause)
+
+
+def _recorder_with(
+    source: _FakePersistentSource, monkeypatch: pytest.MonkeyPatch
+) -> runtime.StreamRecorder:
+    monkeypatch.setattr(runtime, "calibrate", lambda _device: 0.1)
+    return runtime.StreamRecorder(
+        device=None, config=Config(), source_factory=lambda: source
+    )
+
+
+def test_stream_recorder_captures_speech_then_silence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _FakePersistentSource(loud_blocks=8)
+    recorder = _recorder_with(source, monkeypatch)
+    try:
+        audio = recorder.record(wait_secs=5.0, silence_secs=0.2)
+        assert audio is not None
+        assert len(audio) > 0
+    finally:
+        recorder.close()
+
+
+def test_stream_recorder_returns_none_when_nothing_is_said(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _FakePersistentSource(loud_blocks=0)  # silent forever
+    recorder = _recorder_with(source, monkeypatch)
+    try:
+        assert recorder.record(wait_secs=0.3, silence_secs=0.2) is None
+    finally:
+        recorder.close()
+
+
+def test_stream_recorder_close_stops_the_reader_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _FakePersistentSource(loud_blocks=0)
+    recorder = _recorder_with(source, monkeypatch)
+    assert recorder._reader.is_alive()
+    recorder.close()
+    assert not recorder._reader.is_alive()
+
+
+def test_stream_recorder_serves_two_dictations_in_a_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _FakePersistentSource(loud_blocks=1000)  # always loud
+    recorder = _recorder_with(source, monkeypatch)
+    try:
+        first = recorder.record(wait_secs=5.0, silence_secs=0.2)
+        # loud forever means the detector never sees silence; a manual stop ends it.
+        paths.stop_file().parent.mkdir(parents=True, exist_ok=True)
+        paths.stop_file().write_text("stop")
+        second = recorder.record(wait_secs=0.5, silence_secs=0.2)
+        assert second is not None
+        del first
+    finally:
+        recorder.close()

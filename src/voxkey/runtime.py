@@ -14,7 +14,7 @@ import signal
 import socket
 import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Generator, Iterator, Sequence
 from types import FrameType
 
 import numpy as np
@@ -29,7 +29,12 @@ from voxkey.audio.calibration import (
     rms,
     threshold_from_ambient,
 )
-from voxkey.audio.capture import SilenceDetector, record_utterance
+from voxkey.audio.capture import (
+    BLOCK_SECS,
+    AudioSource,
+    ContinuousCapture,
+    SilenceDetector,
+)
 from voxkey.audio.devices import (
     DeviceInfo,
     StreamAudioSource,
@@ -105,13 +110,54 @@ def calibrate(device: int | None, retries: int = DEFAULT_RETRIES) -> float:
     return threshold_from_ambient(0.0)
 
 
-class StreamRecorder:
-    """Recorder backed by a real microphone."""
+POLL_SECS = BLOCK_SECS / 2
 
-    def __init__(self, device: int | None, config: Config) -> None:
-        self._device = device
+
+class StreamRecorder:
+    """Recorder backed by a persistent microphone stream with a rolling pre-buffer.
+
+    Faithful to dictate: one audio stream stays open the whole time the daemon
+    runs, a background thread feeds every block into a ContinuousCapture so the
+    one-second pre-buffer keeps rolling continuously, and each dictation begins
+    with whatever is already in that buffer. This is what removes the delay at
+    the start of a dictation, at the cost of the microphone being open for the
+    daemon's lifetime.
+
+    The capture logic is pure and tested; this class is the thin shell that owns
+    the stream, the reader thread and the lock between the reader and record().
+    ``source_factory`` exists so a test can drive it with a fake persistent
+    source instead of a real device.
+    """
+
+    def __init__(
+        self,
+        device: int | None,
+        config: Config,
+        source_factory: Callable[[], AudioSource] | None = None,
+    ) -> None:
         self._config = config
         self._threshold = calibrate(device)
+        self._make_source = source_factory or (lambda: StreamAudioSource(device))
+        self._capture = ContinuousCapture(config.pre_buffer_secs)
+        self._lock = threading.Lock()
+        self._arm_origin = 0.0
+        self._stopping = threading.Event()
+        self._blocks: Iterator[npt.NDArray[np.float32]] | None = None
+        self._reader = threading.Thread(target=self._read_loop, daemon=True)
+        self._reader.start()
+
+    def _read_loop(self) -> None:
+        source = self._make_source()
+        self._blocks = iter(source.blocks())
+        try:
+            for block in self._blocks:
+                if self._stopping.is_set():
+                    break
+                with self._lock:
+                    now = time.monotonic() - self._arm_origin
+                    self._capture.pump(block, now)
+        except Exception:  # noqa: BLE001  # a dying stream must not crash silently
+            logger.exception("microphone reader stopped")
 
     def record(
         self, wait_secs: float, silence_secs: float
@@ -119,14 +165,38 @@ class StreamRecorder:
         detector = SilenceDetector(
             threshold=self._threshold, silence_secs=silence_secs, wait_secs=wait_secs
         )
-        source = StreamAudioSource(self._device)
-        origin = time.monotonic()
-        return record_utterance(
-            source,
-            detector,
-            clock=lambda: time.monotonic() - origin,
-            stop_flag=stop_requested,
-        )
+        with self._lock:
+            self._arm_origin = time.monotonic()
+            self._capture.arm(detector)
+        try:
+            while not self._stopping.is_set():
+                if stop_requested():
+                    with self._lock:
+                        self._capture.mark_finished()
+                    break
+                with self._lock:
+                    if self._capture.finished:
+                        break
+                time.sleep(POLL_SECS)
+            with self._lock:
+                return self._capture.result()
+        finally:
+            with self._lock:
+                self._capture.disarm()
+
+    def close(self) -> None:
+        """Stop the reader thread and release the microphone stream.
+
+        The reader checks the stop flag after each block; a real device read
+        returns every block period, so it breaks promptly on its own. The
+        generator is closed only once the reader has truly stopped, because a
+        generator that is still executing in the reader thread cannot be closed
+        from here (it raises "generator already executing").
+        """
+        self._stopping.set()
+        self._reader.join(timeout=5)
+        if not self._reader.is_alive() and isinstance(self._blocks, Generator):
+            self._blocks.close()  # run StreamAudioSource's InputStream teardown
 
 
 def run_tcp_server(
@@ -215,9 +285,10 @@ def run_serve(config: Config, listen: str | None, remote: str | None) -> int:
     if device is None:
         logger.error("no input device found")
         return 1
+    recorder = StreamRecorder(device, effective)
     daemon = Daemon(
         transcriber=transcriber,
-        recorder=StreamRecorder(device, effective),
+        recorder=recorder,
         socket_path=paths.socket_file(),
         config=effective,
     )
@@ -235,5 +306,6 @@ def run_serve(config: Config, listen: str | None, remote: str | None) -> int:
     finally:
         signal.signal(signal.SIGTERM, previous_term)
         signal.signal(signal.SIGINT, previous_int)
+        recorder.close()
         pid_path.unlink(missing_ok=True)
     return 0
