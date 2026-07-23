@@ -92,8 +92,10 @@ class VoxkeyTray:
         else:
             state.set_state(state.STATE_IDLE)
             start()
-        # Give systemd a moment to change state, then reflect it.
-        GLib.timeout_add(800, self._poll_service)
+        # Give systemd a moment to change state, then reflect it once. This
+        # must be a one-shot: _poll_service returns True for the steady poller
+        # above, so scheduling it directly would leak an 800ms timer per toggle.
+        GLib.timeout_add(800, self._poll_service_once)
 
     def _on_toggle_sound(self, _item: object) -> None:
         state.set_sound_enabled(not state.sound_enabled())
@@ -137,6 +139,10 @@ class VoxkeyTray:
             self._refresh_labels()
         self._refresh_icon()
         return True
+
+    def _poll_service_once(self) -> bool:
+        self._poll_service()
+        return False
 
     def _poll_icon(self) -> bool:
         self._refresh_icon()

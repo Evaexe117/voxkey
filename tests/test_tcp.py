@@ -103,6 +103,15 @@ def test_negative_audio_length_is_reported() -> None:
         decode_request(io.BytesIO(frame))
 
 
+def test_audio_length_not_a_multiple_of_four_is_reported() -> None:
+    header = json.dumps(
+        {"language": "en", "initial_prompt": "", "audio_length": 5}
+    ).encode()
+    frame = _frame_with_header_bytes(header)
+    with pytest.raises(RemoteError, match="multiple of 4"):
+        decode_request(io.BytesIO(frame))
+
+
 def test_non_json_response_is_reported() -> None:
     with pytest.raises(RemoteError, match="response"):
         decode_response(b"not json\n")

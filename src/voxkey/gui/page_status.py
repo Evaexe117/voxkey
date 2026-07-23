@@ -115,6 +115,10 @@ class StatusPage:
         self._refresh()
         return True
 
+    def _tick_once(self) -> bool:
+        self._tick()
+        return False
+
     # -- actions -----------------------------------------------------------
 
     def _on_toggle(self, _button: object) -> None:
@@ -123,7 +127,9 @@ class StatusPage:
         else:
             state.set_state(state.STATE_IDLE)
             service.start()
-        GLib.timeout_add(800, self._tick)
+        # One-shot refresh: _tick returns True for the steady poller, so
+        # scheduling it directly would leak an 800ms timer per toggle.
+        GLib.timeout_add(800, self._tick_once)
 
     def _on_cycle_language(self, _button: object) -> None:
         config = load()

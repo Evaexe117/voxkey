@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from voxkey import state
 from voxkey.output import clipboard, sound
 
@@ -104,3 +106,32 @@ def test_play_passes_the_forced_locale_to_the_child(xdg: Path, tmp_path: Path) -
     sound.play(target, spawner=spawner)
     assert captured["LC_NUMERIC"] == "C"
     assert "PATH" in captured or "PATH" not in os.environ
+
+
+def test_spawn_reaps_finished_players_so_they_do_not_linger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The default spawner must poll previously started players, otherwise a
+    # finished sound process stays a zombie for the life of the daemon.
+    polled: list[FakePopen] = []
+
+    class FakePopen:
+        def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: ARG002
+            self._done = False
+
+        def poll(self) -> int | None:
+            polled.append(self)
+            self._done = True
+            return 0 if self._done else None
+
+    monkeypatch.setattr(sound.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(sound, "_live", [])
+
+    sound._spawn(["pw-play", "/tmp/a.oga"], {})
+    assert len(sound._live) == 1
+    first = sound._live[0]
+
+    sound._spawn(["pw-play", "/tmp/b.oga"], {})
+    assert first in polled  # the first child was polled on the second spawn
+    assert first not in sound._live  # and dropped once it had finished
+    assert len(sound._live) == 1

@@ -41,12 +41,21 @@ def child_environment(base: Mapping[str, str]) -> dict[str, str]:
     return {**base, "LC_NUMERIC": "C"}
 
 
+# Players that have been started but may not have exited yet. We keep a
+# reference so we can poll() them on the next spawn: without it the finished
+# process lingers as a zombie for the lifetime of the tray/daemon.
+_live: list[subprocess.Popen[bytes]] = []
+
+
 def _spawn(command: list[str], environment: dict[str, str]) -> None:
-    subprocess.Popen(
-        command,
-        env=environment,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+    _live[:] = [child for child in _live if child.poll() is None]
+    _live.append(
+        subprocess.Popen(
+            command,
+            env=environment,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     )
 
 

@@ -108,6 +108,11 @@ def decode_request(stream: IO[bytes]) -> RemoteRequest:
             f"audio too large: {audio_length} bytes exceeds the "
             f"{MAX_AUDIO_BYTES} byte limit"
         )
+    if audio_length % 4 != 0:
+        raise RemoteError(
+            f"invalid header: audio_length must be a multiple of 4 "
+            f"(float32 samples), got {audio_length}"
+        )
     payload = _read_exactly(stream, audio_length)
     audio: npt.NDArray[np.float32] = np.frombuffer(payload, dtype=np.float32)
     return RemoteRequest(
