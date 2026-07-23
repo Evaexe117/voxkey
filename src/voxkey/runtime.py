@@ -325,7 +325,18 @@ def run_devices() -> int:
 def run_serve(config: Config, listen: str | None, remote: str | None) -> int:
     """Run the daemon, or the headless server when --listen is given."""
     effective = config if remote is None else dataclasses.replace(config, remote=remote)
-    transcriber = build_transcriber(effective)
+
+    # Startup can fail for entirely external reasons: the Whisper model is not
+    # cached and there is no network (or the disk is full) — the most likely
+    # first-run failure — or the microphone cannot be opened. Report those as a
+    # clean line and a nonzero exit, not a Python traceback, matching every
+    # other entry point. The daemon is not serving yet, so a broad catch here
+    # protects no request loop.
+    try:
+        transcriber = build_transcriber(effective)
+    except Exception as error:  # noqa: BLE001  # any model-load failure, reported cleanly
+        logger.error("cannot start voxkey: failed to load the model: %s", error)
+        return 1
 
     if listen is not None:
         run_tcp_server(transcriber, parse_address(listen))
@@ -333,9 +344,13 @@ def run_serve(config: Config, listen: str | None, remote: str | None) -> int:
 
     device = choose_input_device(list_input_devices())
     if device is None:
-        logger.error("no input device found")
+        logger.error("cannot start voxkey: no microphone found")
         return 1
-    recorder = StreamRecorder(device, effective)
+    try:
+        recorder = StreamRecorder(device, effective)
+    except Exception as error:  # noqa: BLE001  # any microphone-open failure, reported cleanly
+        logger.error("cannot start voxkey: failed to open the microphone: %s", error)
+        return 1
     daemon = Daemon(
         transcriber=transcriber,
         recorder=recorder,

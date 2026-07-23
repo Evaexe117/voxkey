@@ -497,3 +497,36 @@ def test_tcp_server_survives_a_transcriber_that_raises(
     finally:
         stop.set()
         thread.join(timeout=5)
+
+
+def test_run_serve_reports_a_model_load_failure_cleanly(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The common first-run failure: model not cached and offline. run_serve must
+    # return 1, not let the exception escape as a traceback.
+    monkeypatch.setattr(runtime, "detect_cuda", lambda: False)
+
+    def _fail(_choice: object) -> object:
+        raise OSError("model not cached and no network")
+
+    monkeypatch.setattr(runtime, "load_model", _fail)
+    assert runtime.run_serve(Config(), listen=None, remote=None) == 1
+
+
+def test_run_serve_reports_a_microphone_open_failure_cleanly(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runtime, "detect_cuda", lambda: False)
+    monkeypatch.setattr(runtime, "load_model", lambda _choice: object())
+    monkeypatch.setattr(
+        runtime, "list_input_devices", lambda: [DeviceInfo(0, "mic", 1)]
+    )
+    monkeypatch.setattr(runtime, "choose_input_device", lambda _devices: 0)
+
+    def _fail(_device: object, _config: object) -> object:
+        raise RuntimeError("PortAudioError: device unavailable")
+
+    monkeypatch.setattr(runtime, "StreamRecorder", _fail)
+    assert runtime.run_serve(Config(), listen=None, remote=None) == 1
