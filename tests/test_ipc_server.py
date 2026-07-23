@@ -318,3 +318,81 @@ def test_daemon_survives_a_transcriber_that_raises(xdg: Path, tmp_path: Path) ->
     finally:
         instance.stop()
         thread.join(timeout=5)
+
+
+def test_daemon_sets_done_state_after_a_normal_dictation(
+    xdg: Path, tmp_path: Path  # noqa: ARG001
+) -> None:
+    from voxkey import state as state_mod
+
+    socket_path = tmp_path / "state.sock"
+    instance = Daemon(
+        transcriber=FakeTranscriber(["hi"]),
+        recorder=FakeRecorder([np.ones(160, dtype=np.float32)]),
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+        _dictate(socket_path, DictationRequest(language="en"))
+        assert state_mod.get_state() == state_mod.STATE_DONE
+    finally:
+        instance.stop()
+        thread.join(timeout=5)
+
+
+def test_daemon_sets_idle_state_on_silence(
+    xdg: Path, tmp_path: Path  # noqa: ARG001
+) -> None:
+    from voxkey import state as state_mod
+
+    socket_path = tmp_path / "idle.sock"
+    instance = Daemon(
+        transcriber=FakeTranscriber(["unused"]),
+        recorder=FakeRecorder([None]),  # silence
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+        _dictate(socket_path, DictationRequest(language="en"))
+        assert state_mod.get_state() == state_mod.STATE_IDLE
+    finally:
+        instance.stop()
+        thread.join(timeout=5)
+
+
+def test_daemon_sets_error_state_when_the_transcriber_raises(
+    xdg: Path, tmp_path: Path  # noqa: ARG001
+) -> None:
+    from voxkey import state as state_mod
+
+    socket_path = tmp_path / "err.sock"
+    instance = Daemon(
+        transcriber=_RaisingThenWorkingTranscriber(),
+        recorder=FakeRecorder([np.ones(160, dtype=np.float32)]),
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+        _dictate(socket_path, DictationRequest(language="en"))
+        assert state_mod.get_state() == state_mod.STATE_ERROR
+    finally:
+        instance.stop()
+        thread.join(timeout=5)

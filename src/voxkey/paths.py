@@ -33,6 +33,11 @@ def data_dir() -> Path:
     return _xdg_base("XDG_DATA_HOME", ".local/share") / APP_NAME
 
 
+# The two legacy_* helpers locate an existing dictate installation. They are the
+# hooks for the first-run migration (copy dictate's config, hints and state into
+# voxkey's directories) specified for the packaging plan; nothing consumes them
+# until that migration lands. Kept here so the migration has one place to read
+# from, alongside the already-wired LEGACY_PROJECT_HINTS_DIRNAME.
 def legacy_config_dir() -> Path:
     return _xdg_base("XDG_CONFIG_HOME", ".config") / LEGACY_APP_NAME
 

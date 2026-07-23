@@ -92,19 +92,24 @@ def run_push_to_talk(
 class DaemonSession:
     """Session backed by the daemon over its Unix socket."""
 
-    def __init__(self, socket_path: Path, language: str) -> None:
+    def __init__(self, socket_path: Path, config: Config) -> None:
         self._socket_path = socket_path
-        self._language = language
+        self._config = config
         self._thread: threading.Thread | None = None
         self._text = ""
         self._error: BaseException | None = None
 
     def _dictate(self) -> None:
+        # Read the language live for each dictation, so a `voxkey lang` switch
+        # takes effect on the next hold rather than being frozen at client
+        # start. This mirrors how sound.play reads the mute state live; the
+        # language lives in the same runtime state file, not in config.
+        language = state.get_language(self._config)
         try:
             self._text = dictate_once(
                 self._socket_path,
                 DictationRequest(
-                    language=self._language, initial_prompt=hints.load_hints()
+                    language=language, initial_prompt=hints.load_hints()
                 ),
             )
         except BaseException as error:  # noqa: BLE001  # re-raised in finish
@@ -157,8 +162,7 @@ def run_listen(config: Config) -> int:
 
     key_code = resolve_key(config.key)
     device_path = find_keyboards()[0]
-    language = state.get_language(config)
-    session = DaemonSession(paths.socket_file(), language)
+    session = DaemonSession(paths.socket_file(), config)
 
     logger.info("holding %s dictates, reading %s", config.key, device_path)
     run_push_to_talk(

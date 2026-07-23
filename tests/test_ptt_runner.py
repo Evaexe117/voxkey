@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from voxkey.ptt.machine import KeyEvent
@@ -103,3 +105,32 @@ def test_delivery_rings_the_bell_when_the_copy_fails(
     monkeypatch.setattr(sound, "play", lambda path: played.append(str(path)))
     deliver_to_clipboard("hello")
     assert played == [str(sound.SOUND_BELL)]
+
+
+def test_daemon_session_reads_the_language_live_each_dictation(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # voxkey lang must take effect on the next hold, not be frozen at start.
+    from voxkey import hints, paths, state
+    from voxkey.config import Config
+    from voxkey.ipc.protocol import DictationRequest
+    from voxkey.ptt import runner
+
+    sent: list[str] = []
+
+    def fake_dictate(
+        _sock: object, request: DictationRequest, _on_status: object = None
+    ) -> str:
+        sent.append(request.language)
+        return "x"
+
+    monkeypatch.setattr(runner, "dictate_once", fake_dictate)
+    monkeypatch.setattr(hints, "load_hints", lambda: None)
+    session = runner.DaemonSession(paths.socket_file(), Config(language="en"))
+    session.start()
+    session.finish()
+    state.set_language("fr")
+    session.start()
+    session.finish()
+    assert sent == ["en", "fr"]
