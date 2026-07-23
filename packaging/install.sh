@@ -2,7 +2,8 @@
 # Install voxkey's desktop integration: the systemd user units the tray toggles,
 # the application and autostart entries, and the checks pip cannot do.
 #
-# voxkey itself is installed separately, ideally with `pipx install voxkey[gui]`.
+# voxkey itself is installed separately, ideally with `pipx install ".[gui]"`
+# from a clone of the repository.
 # This script only wires it into the desktop session.
 set -euo pipefail
 

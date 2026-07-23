@@ -7,7 +7,7 @@
 <p align="center">
   Push-to-talk dictation for Linux, transcribed locally with <a href="https://github.com/SYSTRAN/faster-whisper">faster-whisper</a>.<br>
   Hold a key, speak, release: your words land in the clipboard, ready to paste anywhere.<br>
-  Created to speach-to-text to claude code / codex directly on the cli
+  <b>Speech-to-text</b> created by a lazy user to talk to AIs: dictate straight into <b>Claude Code</b> / <b>Codex</b> from the CLI.
 </p>
 
 ---
@@ -51,21 +51,22 @@ There is no keystroke injection and no key grabbing: voxkey only reads input eve
 Requires Python 3.12+ and Linux. Audio is expected through PipeWire (PulseAudio compatible).
 
 ```bash
-# The app itself (pipx recommended, plain pip works too)
-pipx install "voxkey[gui]"
-
 # Clipboard tool + GTK libraries for the GUI and tray (Debian/Ubuntu/Mint)
 sudo apt install xsel python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
 
 # Reading the keyboard requires membership of the input group
 sudo usermod -aG input "$USER"   # then log out and back in
+
+# Get the code and install it (pipx recommended, plain pip works too)
+git clone https://github.com/Evaexe117/voxkey
+cd voxkey
+pipx install ".[gui]"
 ```
 
 Then install the desktop integration (systemd user units, application menu entry, tray autostart):
 
 ```bash
-git clone https://github.com/Evaexe117/voxkey
-./voxkey/packaging/install.sh
+./packaging/install.sh
 systemctl --user enable --now voxkey.service voxkey-ptt.service
 ```
 
