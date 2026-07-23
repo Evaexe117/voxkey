@@ -11,6 +11,10 @@
 
 ---
 
+
+https://github.com/user-attachments/assets/a16d01f2-38ca-4971-9223-3566d6746159
+
+
 ## Why voxkey
 
 - **Local first.** Speech never leaves your machine. Transcription runs on your own CPU or GPU with faster-whisper. No cloud, no account, no telemetry.
