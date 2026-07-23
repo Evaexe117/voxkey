@@ -114,6 +114,10 @@ POLL_SECS = BLOCK_SECS / 2
 # A real microphone delivers a block every BLOCK_SECS; this much silence from
 # the reader means the device has stalled, not that it is merely quiet.
 READER_STALL_SECS = 5.0
+# How long close() waits for the reader thread to exit. A reader wedged in a
+# hung device read() cannot be interrupted, so close() gives up after this and
+# lets the daemon thread die with the process.
+READER_JOIN_SECS = 5.0
 
 
 class StreamRecorder:
@@ -221,7 +225,7 @@ class StreamRecorder:
         from here (it raises "generator already executing").
         """
         self._stopping.set()
-        self._reader.join(timeout=5)
+        self._reader.join(timeout=READER_JOIN_SECS)
         if not self._reader.is_alive() and isinstance(self._blocks, Generator):
             self._blocks.close()  # run StreamAudioSource's InputStream teardown
 

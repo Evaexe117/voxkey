@@ -353,6 +353,7 @@ def test_stream_recorder_does_not_hang_when_the_reader_stalls(
     # raising: the reader stays alive but stops delivering audio. record() must
     # give up on the stall watchdog rather than spin forever.
     monkeypatch.setattr(runtime, "READER_STALL_SECS", 0.3)
+    monkeypatch.setattr(runtime, "READER_JOIN_SECS", 0.3)
 
     class _StallingSource:
         def blocks(self) -> Iterator[np.ndarray]:
