@@ -177,6 +177,12 @@ class StreamRecorder:
         detector = SilenceDetector(
             threshold=self._threshold, silence_secs=silence_secs, wait_secs=wait_secs
         )
+        # Clear any stop flag left over from a previous dictation. A dictation
+        # can end on its own (silence, wait timeout, stall, reader death) before
+        # the key is released; the release then writes the stop flag with nothing
+        # to consume it, and without this line that stale flag would make the
+        # next dictation stop on its first block and return only the pre-buffer.
+        paths.stop_file().unlink(missing_ok=True)
         with self._lock:
             self._arm_origin = time.monotonic()
             self._capture.arm(detector)
@@ -214,6 +220,16 @@ class StreamRecorder:
         finally:
             with self._lock:
                 self._capture.disarm()
+
+    def request_stop(self) -> None:
+        """Ask an in-flight record() and the reader to stop, without waiting.
+
+        Called from the daemon's shutdown signal handler so a SIGTERM that
+        arrives mid-dictation ends the recording promptly instead of waiting for
+        the current utterance to finish. close() does the actual join later. Only
+        Event.set() runs here, which is safe from a signal handler.
+        """
+        self._stopping.set()
 
     def close(self) -> None:
         """Stop the reader thread and release the microphone stream.
@@ -326,6 +342,9 @@ def run_serve(config: Config, listen: str | None, remote: str | None) -> int:
 
     def _handle_shutdown_signal(signum: int, frame: FrameType | None) -> None:  # noqa: ARG001
         logger.info("received signal %d, stopping", signum)
+        # Unblock an in-flight record() so serve_forever can see the stop flag
+        # now rather than after the current utterance finishes.
+        recorder.request_stop()
         daemon.stop()
 
     pid_path = paths.pid_file()

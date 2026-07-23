@@ -374,3 +374,38 @@ def test_stream_recorder_does_not_hang_when_the_reader_stalls(
         assert recorder._reader.is_alive()  # still alive, just stalled
     finally:
         recorder.close()
+
+
+def test_record_clears_a_stale_stop_flag_from_a_previous_dictation(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A stop flag left over from a previous key release must not truncate the
+    # next dictation. record() clears it on arm, so a full utterance is captured.
+    paths.stop_file().parent.mkdir(parents=True, exist_ok=True)
+    paths.stop_file().write_text("stop")  # stale flag
+    source = _FakePersistentSource(loud_blocks=6)
+    recorder = _recorder_with(source, monkeypatch)
+    try:
+        audio = recorder.record(wait_secs=5.0, silence_secs=0.2)
+        assert audio is not None
+        assert len(audio) > 160  # not truncated to a single block
+    finally:
+        recorder.close()
+
+
+def test_request_stop_unblocks_an_in_flight_record(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _FakePersistentSource(loud_blocks=100000)  # loud forever, never silent
+    recorder = _recorder_with(source, monkeypatch)
+    try:
+        # A shutdown signal calls request_stop from another thread; record must
+        # return promptly instead of waiting for silence that never comes.
+        threading.Timer(0.2, recorder.request_stop).start()
+        result = recorder.record(wait_secs=30.0, silence_secs=5.0)
+        # Loud audio means speech was detected, so a partial result comes back.
+        assert result is not None
+    finally:
+        recorder.close()

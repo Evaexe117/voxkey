@@ -17,9 +17,9 @@ from pathlib import Path
 from voxkey import __version__, hints, paths, runtime, state
 from voxkey.config import ConfigError, load
 from voxkey.i18n import _, setup
-from voxkey.ipc.client import DaemonUnavailableError, dictate_once
+from voxkey.ipc.client import dictate_once
 from voxkey.ipc.protocol import DictationRequest
-from voxkey.languages import language_name
+from voxkey.languages import NAMES, language_name
 from voxkey.ptt.keyboard import NoKeyboardError
 from voxkey.ptt.runner import run_listen
 
@@ -61,9 +61,13 @@ def _command_once(config_language: str) -> int:
     request = DictationRequest(
         language=config_language, initial_prompt=hints.load_hints()
     )
+    # DaemonUnavailableError is a RuntimeError, so catching RuntimeError also
+    # covers an error reply from the daemon; OSError covers a mid-request
+    # disconnect. Either way this scripting entry point must print a line and
+    # exit, never a traceback.
     try:
         text = dictate_once(paths.socket_file(), request)
-    except DaemonUnavailableError as error:
+    except (RuntimeError, OSError) as error:
         print(str(error), file=sys.stderr)
         return 1
     if not text:
@@ -83,6 +87,14 @@ def _command_lang(
     print(
         _("Language: {name} ({code})").format(name=language_name(target), code=target)
     )
+    # A code voxkey does not recognise is not fatal (Whisper accepts many codes
+    # beyond the name table), but warn so a typo surfaces here rather than as a
+    # transcription failure later.
+    if target.casefold() not in NAMES:
+        print(
+            _("Warning: {code} is not a known language code").format(code=target),
+            file=sys.stderr,
+        )
     return 0
 
 

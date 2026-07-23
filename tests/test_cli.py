@@ -168,3 +168,43 @@ def test_signal_daemon_treats_permission_error_as_not_running(
 
     monkeypatch.setattr("os.kill", deny)
     assert _signal_daemon(pid_file) is False
+
+
+def test_once_reports_a_daemon_error_reply_without_a_traceback(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from voxkey import cli, hints
+
+    def boom(
+        _socket_path: object, _request: object, _on_status: object = None
+    ) -> str:
+        raise RuntimeError("model exploded")
+
+    monkeypatch.setattr(cli, "dictate_once", boom)
+    monkeypatch.setattr(hints, "load_hints", lambda: None)
+    assert cli._command_once("en") == 1
+    assert "model exploded" in capsys.readouterr().err
+
+
+def test_lang_warns_on_an_unknown_code(
+    xdg: Path,  # noqa: ARG001
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from voxkey import cli
+
+    assert cli._command_lang("zzz", "en", ["en", "fr"]) == 0
+    err = capsys.readouterr().err
+    assert "zzz" in err
+    assert "known language code" in err
+
+
+def test_lang_does_not_warn_on_a_known_code(
+    xdg: Path,  # noqa: ARG001
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from voxkey import cli
+
+    cli._command_lang("fr", "en", ["en", "fr"])
+    assert "known language code" not in capsys.readouterr().err

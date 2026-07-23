@@ -18,7 +18,10 @@ from voxkey import paths
 
 def read_hints_file(path: Path) -> list[str]:
     words: list[str] = []
-    for raw_line in path.read_text().splitlines():
+    # errors="replace": a single hints file that is not UTF-8 must not break
+    # every dictation. A garbled term is harmless; a raised UnicodeDecodeError
+    # would take down the whole load_hints call.
+    for raw_line in path.read_text(errors="replace").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue

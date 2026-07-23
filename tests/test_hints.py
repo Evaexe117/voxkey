@@ -72,3 +72,12 @@ def test_legacy_project_directory_is_still_read(xdg: Path, tmp_path: Path) -> No
 
 def test_no_hints_anywhere_yields_none(xdg: Path, tmp_path: Path) -> None:  # noqa: ARG001
     assert hints.load_hints(tmp_path / "empty") is None
+
+
+def test_a_non_utf8_hints_file_does_not_raise(tmp_path: Path) -> None:
+    source = tmp_path / "terms"
+    source.write_bytes(b"Whisper\n\xff\xfe garbled\nPipeWire\n")
+    # errors="replace" keeps the readable terms and never raises.
+    result = hints.read_hints_file(source)
+    assert "Whisper" in result
+    assert "PipeWire" in result
