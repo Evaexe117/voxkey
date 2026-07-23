@@ -7,7 +7,7 @@
 <p align="center">
   Push-to-talk dictation for Linux, transcribed locally with <a href="https://github.com/SYSTRAN/faster-whisper">faster-whisper</a>.<br>
   Hold a key, speak, release: your words land in the clipboard, ready to paste anywhere.<br>
-  Created to speach-to-text to claude code / codex directly on the cli
+  **Created to speach-to-text to claude code / codex directly on the cli**
 </p>
 
 ---
