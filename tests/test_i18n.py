@@ -67,3 +67,24 @@ def test_shipped_french_catalogue_compiles_with_its_accents() -> None:
     po = Path("src/voxkey/locales/fr/LC_MESSAGES/voxkey.po").read_text()
     compiled = compile_po(po)
     assert "Aucune parole détectée".encode() in compiled
+
+
+def test_shipped_french_catalogue_covers_every_live_string() -> None:
+    # Guards the packaging pipeline and catalogue drift: the shipped .po must
+    # carry an entry for every string the code actually passes through _(), so a
+    # real install shows French, not a silent English fallback. Checking
+    # membership (not translated != source) is deliberate: some names, like
+    # "Hindi", are legitimately identical in French.
+    from tools.compile_catalogs import parse_po
+    from voxkey.languages import NAMES
+
+    po = Path("src/voxkey/locales/fr/LC_MESSAGES/voxkey.po").read_text()
+    catalogue = parse_po(po)
+    live_strings = [
+        "No speech detected",
+        "Language: {name} ({code})",
+        "Warning: {code} is not a known language code",
+        *NAMES.values(),
+    ]
+    missing = [s for s in live_strings if s not in catalogue]
+    assert missing == [], f"strings with no French catalogue entry: {missing}"

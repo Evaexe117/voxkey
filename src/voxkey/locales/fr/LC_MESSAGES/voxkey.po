@@ -4,14 +4,66 @@ msgstr ""
 "Language: fr\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Recording"
-msgstr "Enregistrement"
-
-msgid "Transcribing"
-msgstr "Transcription"
-
 msgid "No speech detected"
 msgstr "Aucune parole détectée"
 
 msgid "Language: {name} ({code})"
 msgstr "Langue : {name} ({code})"
+
+msgid "Warning: {code} is not a known language code"
+msgstr "Attention : {code} n'est pas un code de langue connu"
+
+# Language display names (voxkey.languages.NAMES), shown by `voxkey lang`.
+msgid "Arabic"
+msgstr "Arabe"
+
+msgid "Czech"
+msgstr "Tchèque"
+
+msgid "German"
+msgstr "Allemand"
+
+msgid "English"
+msgstr "Anglais"
+
+msgid "Spanish"
+msgstr "Espagnol"
+
+msgid "French"
+msgstr "Français"
+
+msgid "Hindi"
+msgstr "Hindi"
+
+msgid "Italian"
+msgstr "Italien"
+
+msgid "Japanese"
+msgstr "Japonais"
+
+msgid "Korean"
+msgstr "Coréen"
+
+msgid "Dutch"
+msgstr "Néerlandais"
+
+msgid "Polish"
+msgstr "Polonais"
+
+msgid "Portuguese"
+msgstr "Portugais"
+
+msgid "Russian"
+msgstr "Russe"
+
+msgid "Swedish"
+msgstr "Suédois"
+
+msgid "Turkish"
+msgstr "Turc"
+
+msgid "Ukrainian"
+msgstr "Ukrainien"
+
+msgid "Chinese"
+msgstr "Chinois"

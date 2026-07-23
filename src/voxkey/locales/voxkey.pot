@@ -3,14 +3,66 @@ msgstr ""
 "Project-Id-Version: voxkey 0.1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Recording"
-msgstr ""
-
-msgid "Transcribing"
-msgstr ""
-
 msgid "No speech detected"
 msgstr ""
 
 msgid "Language: {name} ({code})"
+msgstr ""
+
+msgid "Warning: {code} is not a known language code"
+msgstr ""
+
+# Language display names (voxkey.languages.NAMES), shown by `voxkey lang`.
+msgid "Arabic"
+msgstr ""
+
+msgid "Czech"
+msgstr ""
+
+msgid "German"
+msgstr ""
+
+msgid "English"
+msgstr ""
+
+msgid "Spanish"
+msgstr ""
+
+msgid "French"
+msgstr ""
+
+msgid "Hindi"
+msgstr ""
+
+msgid "Italian"
+msgstr ""
+
+msgid "Japanese"
+msgstr ""
+
+msgid "Korean"
+msgstr ""
+
+msgid "Dutch"
+msgstr ""
+
+msgid "Polish"
+msgstr ""
+
+msgid "Portuguese"
+msgstr ""
+
+msgid "Russian"
+msgstr ""
+
+msgid "Swedish"
+msgstr ""
+
+msgid "Turkish"
+msgstr ""
+
+msgid "Ukrainian"
+msgstr ""
+
+msgid "Chinese"
 msgstr ""
