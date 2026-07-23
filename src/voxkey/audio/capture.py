@@ -96,6 +96,62 @@ class PreBuffer:
         self._samples.clear()
         return drained
 
+    def snapshot(self) -> npt.NDArray[np.float32]:
+        """Copy the current contents without clearing; the buffer keeps rolling."""
+        return np.array(self._samples, dtype=np.float32)
+
+
+class ContinuousCapture:
+    """Rolling pre-buffer plus an armed recording that starts with its snapshot.
+
+    Mirrors dictate's persistent stream: `pump` is fed every block the device
+    produces, whether or not a dictation is in progress, so the pre-buffer
+    keeps rolling continuously. Arming a recording seeds it with whatever was
+    already in the pre-buffer, which is what removes the start-of-dictation
+    delay.
+    """
+
+    def __init__(self, pre_buffer_secs: float, sample_rate: int = SAMPLE_RATE) -> None:
+        self._pre_buffer = PreBuffer(pre_buffer_secs, sample_rate=sample_rate)
+        self._detector: SilenceDetector | None = None
+        self._recording: list[npt.NDArray[np.float32]] = []
+        self._finished = False
+
+    @property
+    def armed(self) -> bool:
+        return self._detector is not None
+
+    @property
+    def finished(self) -> bool:
+        return self._finished
+
+    def pump(self, block: npt.NDArray[np.float32], now: float) -> None:
+        self._pre_buffer.append(block)
+        if self._detector is not None and not self._finished:
+            self._recording.append(block)
+            if not self._detector.feed(rms(block), now):
+                self._finished = True
+
+    def arm(self, detector: SilenceDetector) -> None:
+        self._detector = detector
+        self._recording = [self._pre_buffer.snapshot()]
+        self._finished = False
+
+    def result(self) -> npt.NDArray[np.float32] | None:
+        if self._detector is None or not self._detector.speech_detected:
+            return None
+        return np.concatenate(self._recording).astype(np.float32)
+
+    def mark_finished(self) -> None:
+        # A manual stop is a valid recording, whatever the levels were.
+        if self._detector is not None:
+            self._detector.speech_detected = True
+        self._finished = True
+
+    def disarm(self) -> None:
+        self._detector = None
+        self._recording = []
+
 
 def record_utterance(
     source: AudioSource,
