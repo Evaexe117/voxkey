@@ -39,10 +39,10 @@ Issues = "https://github.com/Evaexe117/voxkey/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/voxkey"]
-# The compiled catalogues are build output (git-ignored), so force-include them
-# past the VCS ignore; the build hook below generates them first.
-artifacts = ["src/voxkey/locales/**/*.mo"]
 
+# The build hook compiles the git-ignored .mo catalogues into a temp dir and
+# force-includes them, so the wheel ships them without writing into the source
+# tree (a read-only source tree still builds).
 [tool.hatch.build.targets.wheel.hooks.custom]
 path = "hatch_build.py"
 

@@ -114,10 +114,33 @@ def compile_po(po_text: str) -> bytes:
     return header + key_table + value_table + ids + strings
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1] / "src" / "voxkey" / "locales"
-    compiled = 0
+def locales_root() -> Path:
+    return Path(__file__).resolve().parents[1] / "src" / "voxkey" / "locales"
+
+
+def compile_into(dest_dir: Path) -> dict[str, str]:
+    """Compile every catalogue into ``dest_dir``, mirroring the package layout.
+
+    Returns a mapping from each written .mo (absolute path) to its path relative
+    to the package root ("voxkey/locales/.../voxkey.mo"). The build hook uses
+    this to force-include the generated files without writing into the source
+    tree, so a read-only source tree still builds.
+    """
+    root = locales_root()
+    mapping: dict[str, str] = {}
     for po_path in root.rglob("*.po"):
+        relative = po_path.relative_to(root.parent.parent).with_suffix(".mo")
+        mo_path = dest_dir / relative
+        mo_path.parent.mkdir(parents=True, exist_ok=True)
+        mo_path.write_bytes(compile_po(po_path.read_text()))
+        mapping[str(mo_path)] = str(relative)
+    return mapping
+
+
+def main() -> int:
+    """Compile catalogues in place, for the developer workflow."""
+    compiled = 0
+    for po_path in locales_root().rglob("*.po"):
         mo_path = po_path.with_suffix(".mo")
         mo_path.write_bytes(compile_po(po_path.read_text()))
         print(f"compiled {po_path} -> {mo_path}")

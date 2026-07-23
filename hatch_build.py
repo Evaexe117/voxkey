@@ -3,14 +3,15 @@
 The .po sources are tracked in git; the compiled .mo files are build output and
 are git-ignored. Without this hook the wheel would ship only the .po sources and
 the runtime would silently fall back to English, so the French UI would not work
-for anyone who installed voxkey. The hook runs the same pure-Python compiler the
-developer uses (tools/compile_catalogs.py), and the wheel target force-includes
-the generated .mo via the `artifacts` setting in pyproject.toml.
+for anyone who installed voxkey. The hook compiles the catalogues into a build
+temp directory and force-includes them, so it never writes into the source tree
+and a read-only source tree still builds.
 """
 
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -21,10 +22,11 @@ class CompileCatalogsHook(BuildHookInterface):
     def initialize(
         self,
         version: str,  # noqa: ARG002
-        build_data: dict[str, Any],  # noqa: ARG002
+        build_data: dict[str, Any],
     ) -> None:
-        root = Path(self.root)
-        sys.path.insert(0, str(root / "tools"))
+        sys.path.insert(0, str(Path(self.root) / "tools"))
         import compile_catalogs
 
-        compile_catalogs.main()
+        dest = Path(tempfile.mkdtemp(prefix="voxkey-mo-"))
+        mapping = compile_catalogs.compile_into(dest)
+        build_data.setdefault("force_include", {}).update(mapping)
