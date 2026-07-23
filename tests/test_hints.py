@@ -35,6 +35,34 @@ def test_subdirectories_are_ignored(tmp_path: Path) -> None:
     assert hints.read_hints_dir(tmp_path) == ["Alpha"]
 
 
+def test_a_symlinked_hints_file_is_refused(tmp_path: Path) -> None:
+    # A hostile project could point a hints entry at any local file and have
+    # its content shipped to the transcription server; symlinks never count.
+    secret = tmp_path / "outside.txt"
+    secret.write_text("SECRET_TOKEN\n")
+    hints_dir = tmp_path / "hints"
+    hints_dir.mkdir()
+    (hints_dir / "terms").symlink_to(secret)
+    (hints_dir / "a.hints").write_text("Alpha\n")
+    assert hints.read_hints_dir(hints_dir) == ["Alpha"]
+
+
+def test_a_symlinked_hints_directory_is_refused(tmp_path: Path) -> None:
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "a.hints").write_text("Alpha\n")
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    assert hints.read_hints_dir(link) == []
+
+
+def test_an_oversized_hints_file_is_skipped(tmp_path: Path) -> None:
+    big = tmp_path / "big.hints"
+    big.write_text("x" * (hints.MAX_HINTS_FILE_BYTES + 1))
+    (tmp_path / "a.hints").write_text("Alpha\n")
+    assert hints.read_hints_dir(tmp_path) == ["Alpha"]
+
+
 def test_deduplication_is_case_insensitive_and_keeps_the_first_spelling() -> None:
     assert hints.deduplicate(["PipeWire", "pipewire", "Whisper"]) == [
         "PipeWire",

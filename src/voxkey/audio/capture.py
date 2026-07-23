@@ -19,6 +19,11 @@ from voxkey.audio.calibration import rms
 SAMPLE_RATE = 16000
 BLOCK_SECS = 0.1
 
+# Hard ceiling on a single recording, independent of the silence detection.
+# Ambient noise that never drops below the threshold would otherwise keep the
+# recording (a plain in-memory list of blocks) growing without bound.
+MAX_RECORD_SECS = 600.0
+
 
 class AudioSource(Protocol):
     def blocks(self) -> Iterator[npt.NDArray[np.float32]]:
@@ -47,10 +52,17 @@ class SyntheticAudioSource:
 class SilenceDetector:
     """Decide, level by level, whether recording should continue."""
 
-    def __init__(self, threshold: float, silence_secs: float, wait_secs: float) -> None:
+    def __init__(
+        self,
+        threshold: float,
+        silence_secs: float,
+        wait_secs: float,
+        max_secs: float = MAX_RECORD_SECS,
+    ) -> None:
         self._threshold = threshold
         self._silence_secs = silence_secs
         self._wait_secs = wait_secs
+        self._max_secs = max_secs
         self._last_speech = 0.0
         self.speech_detected = False
         self.finished = False
@@ -63,6 +75,11 @@ class SilenceDetector:
         that fixed origin rather than against whenever ``feed`` first happens
         to be called.
         """
+        if now >= self._max_secs:
+            # The ceiling ends the recording but does not discard it: whatever
+            # was said up to this point is still transcribed.
+            self.finished = True
+            return False
         if level > self._threshold:
             self.speech_detected = True
             self._last_speech = now

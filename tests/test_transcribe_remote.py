@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import socket
 import threading
 from collections.abc import Iterator
@@ -127,3 +128,59 @@ def test_parse_address_rejects_an_out_of_range_port() -> None:
         parse_address("host:99999999999")
     with pytest.raises(ValueError, match="out of range"):
         parse_address("host:0")
+
+
+def test_a_trickling_reply_hits_the_absolute_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # One byte per interval keeps every individual recv() under its own
+    # timeout; only an absolute deadline stops a server that trickles forever.
+    monkeypatch.setattr("voxkey.transcribe.remote.READ_TIMEOUT_SECS", 0.3)
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+
+    def serve() -> None:
+        connection, _ = listener.accept()
+        with connection, connection.makefile("rb") as stream:
+            decode_request(stream)
+            try:
+                for _ in range(10):
+                    connection.sendall(b"x")
+                    threading.Event().wait(0.15)
+            except OSError:
+                pass  # the client gave up, as expected
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    try:
+        transcriber = RemoteTranscriber(listener.getsockname())
+        with pytest.raises(TimeoutError):
+            transcriber.transcribe(np.zeros(1, dtype=np.float32), "en", None)
+    finally:
+        thread.join(timeout=5)
+        listener.close()
+
+
+def test_an_oversized_reply_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("voxkey.transcribe.remote.MAX_RESPONSE_BYTES", 1024)
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+
+    def serve() -> None:
+        connection, _ = listener.accept()
+        with connection, connection.makefile("rb") as stream:
+            decode_request(stream)
+            with contextlib.suppress(OSError):
+                connection.sendall(b"a" * 65536)  # the client gave up, as expected
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    try:
+        transcriber = RemoteTranscriber(listener.getsockname())
+        with pytest.raises(RemoteError, match="too large"):
+            transcriber.transcribe(np.zeros(1, dtype=np.float32), "en", None)
+    finally:
+        thread.join(timeout=5)
+        listener.close()

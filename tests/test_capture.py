@@ -42,6 +42,19 @@ def test_a_level_exactly_at_the_threshold_is_not_speech() -> None:
     assert detector.speech_detected is False
 
 
+def test_continuous_noise_hits_the_hard_ceiling() -> None:
+    # Noise forever above the threshold means the silence branch never fires;
+    # without the ceiling the recording would grow without bound.
+    detector = SilenceDetector(
+        threshold=0.1, silence_secs=3.0, wait_secs=10.0, max_secs=60.0
+    )
+    assert detector.feed(0.5, now=59.9) is True
+    assert detector.feed(0.5, now=60.0) is False
+    assert detector.finished is True
+    # What was said before the ceiling is kept, not discarded.
+    assert detector.speech_detected is True
+
+
 def test_prebuffer_keeps_only_the_last_second() -> None:
     buffer = PreBuffer(max_secs=1.0, sample_rate=10)
     for value in range(15):

@@ -7,6 +7,7 @@ modules this one imports, which is why this file stays short.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import logging
 import os
@@ -59,6 +60,11 @@ logger = logging.getLogger(__name__)
 BACKLOG = 1
 ACCEPT_TIMEOUT_SECS = 0.2
 CONNECTION_TIMEOUT_SECS = 30.0
+# Absolute budget for reading one request. The per-recv timeout alone lets a
+# hostile client drip one byte every few seconds and wedge the single-threaded
+# server indefinitely; this deadline cuts the connection whatever the pace.
+REQUEST_READ_DEADLINE_SECS = 120.0
+LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
 
 
 def build_transcriber(config: Config) -> Transcriber:
@@ -258,6 +264,13 @@ def run_tcp_server(
     listener.bind(address)
     listener.listen(BACKLOG)
     listener.settimeout(ACCEPT_TIMEOUT_SECS)
+    if address[0] not in LOOPBACK_HOSTS:
+        # There is no authentication on this protocol: anyone who can reach
+        # the address can submit audio and occupy the single-threaded loop.
+        logger.warning(
+            "listening on %s without authentication; only use this on a "
+            "trusted network", address[0]
+        )
     logger.info("listening for audio on %s:%s", *address)
     try:
         while not stopping.is_set():
@@ -272,8 +285,15 @@ def run_tcp_server(
             connection.settimeout(CONNECTION_TIMEOUT_SECS)
             with connection:
                 try:
-                    with connection.makefile("rb") as stream:
-                        request = decode_request(stream)
+                    watchdog = threading.Timer(
+                        REQUEST_READ_DEADLINE_SECS, _abort_connection, (connection,)
+                    )
+                    watchdog.start()
+                    try:
+                        with connection.makefile("rb") as stream:
+                            request = decode_request(stream)
+                    finally:
+                        watchdog.cancel()
                     text = transcriber.transcribe(
                         request.audio, request.language, request.initial_prompt or None
                     )
@@ -286,6 +306,16 @@ def run_tcp_server(
                     _tcp_send(connection, encode_error(str(error)))
     finally:
         listener.close()
+
+
+def _abort_connection(connection: socket.socket) -> None:
+    """Cut a connection whose request read has exceeded its deadline.
+
+    shutdown() makes the blocked recv in decode_request return immediately,
+    which surfaces as a truncated-frame error handled by the request loop.
+    """
+    with contextlib.suppress(OSError):
+        connection.shutdown(socket.SHUT_RDWR)
 
 
 def _tcp_send(connection: socket.socket, payload: bytes) -> None:

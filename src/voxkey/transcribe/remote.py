@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import socket
+import time
 
 import numpy as np
 import numpy.typing as npt
 
-from voxkey.net.tcp import RemoteRequest, decode_response, encode_request
+from voxkey.net.tcp import RemoteError, RemoteRequest, decode_response, encode_request
 
 RECEIVE_CHUNK = 4096
 CONNECT_TIMEOUT_SECS = 10.0
@@ -15,6 +16,10 @@ CONNECT_TIMEOUT_SECS = 10.0
 # server is eventually given up on rather than hanging the client forever,
 # while still leaving room for a long transcription on a slow remote.
 READ_TIMEOUT_SECS = 300.0
+#: The response is a small JSON object carrying the transcribed text; 16 MiB
+#: is far beyond any real transcription and bounds a hostile or buggy server
+#: that streams data forever.
+MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 
 
 def parse_address(text: str) -> tuple[str, int]:
@@ -54,16 +59,30 @@ class RemoteTranscriber:
             # create_connection leaves its connect timeout on the socket,
             # which would otherwise also cap the read below and cut off a
             # transcription that legitimately takes longer than that to
-            # produce. Replace it with a generous read deadline: long enough
-            # not to interrupt a real transcription, finite so a dead peer does
-            # not hang the client forever.
+            # produce. The read deadline is absolute (monotonic clock), not
+            # per-recv: a peer trickling one byte per timeout window would
+            # otherwise keep the daemon blocked indefinitely.
             connection.settimeout(READ_TIMEOUT_SECS)
             connection.sendall(frame)
             connection.shutdown(socket.SHUT_WR)
+            deadline = time.monotonic() + READ_TIMEOUT_SECS
+            total = 0
             chunks: list[bytes] = []
             while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        "timed out reading the transcription response "
+                        f"({READ_TIMEOUT_SECS:.0f}s deadline)"
+                    )
+                connection.settimeout(remaining)
                 chunk = connection.recv(RECEIVE_CHUNK)
                 if not chunk:
                     break
+                total += len(chunk)
+                if total > MAX_RESPONSE_BYTES:
+                    raise RemoteError(
+                        f"response too large: over {MAX_RESPONSE_BYTES} bytes"
+                    )
                 chunks.append(chunk)
         return decode_response(b"".join(chunks))

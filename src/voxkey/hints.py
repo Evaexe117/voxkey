@@ -18,6 +18,10 @@ from voxkey import paths
 
 logger = logging.getLogger(__name__)
 
+#: Hints are short vocabulary lists; anything bigger is a mistake or an attack
+#: and would be shipped verbatim to a remote transcription server.
+MAX_HINTS_FILE_BYTES = 64 * 1024
+
 
 def read_hints_file(path: Path) -> list[str]:
     words: list[str] = []
@@ -25,6 +29,9 @@ def read_hints_file(path: Path) -> list[str]:
     # tolerates one that cannot be read at all (permissions). A single bad hints
     # file must never break every dictation, so it is skipped, not raised.
     try:
+        if path.stat().st_size > MAX_HINTS_FILE_BYTES:
+            logger.warning("skipping oversized hints file %s", path)
+            return words
         text = path.read_text(errors="replace")
     except OSError:
         logger.warning("skipping unreadable hints file %s", path)
@@ -38,7 +45,11 @@ def read_hints_file(path: Path) -> list[str]:
 
 
 def read_hints_dir(directory: Path) -> list[str]:
-    if not directory.is_dir():
+    # Symlinks are refused outright: a hostile project directory containing
+    # `.voxkey-hints.d/terms -> /proc/self/environ` would otherwise smuggle
+    # arbitrary local files into the prompt sent to a remote transcription
+    # server. Same reasoning for a symlinked hints directory itself.
+    if directory.is_symlink() or not directory.is_dir():
         return []
     words: list[str] = []
     try:
@@ -47,6 +58,9 @@ def read_hints_dir(directory: Path) -> list[str]:
         logger.warning("skipping unreadable hints directory %s", directory)
         return words
     for entry in entries:
+        if entry.is_symlink():
+            logger.warning("skipping symlinked hints entry %s", entry)
+            continue
         if entry.is_file():
             words.extend(read_hints_file(entry))
     return words
