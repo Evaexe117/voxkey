@@ -343,3 +343,33 @@ def test_stream_recorder_does_not_hang_when_the_reader_dies(
         assert result is None
     finally:
         recorder.close()
+
+
+def test_stream_recorder_does_not_hang_when_the_reader_stalls(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A source that yields a couple of blocks then blocks forever without
+    # raising: the reader stays alive but stops delivering audio. record() must
+    # give up on the stall watchdog rather than spin forever.
+    monkeypatch.setattr(runtime, "READER_STALL_SECS", 0.3)
+
+    class _StallingSource:
+        def blocks(self) -> Iterator[np.ndarray]:
+            import time
+
+            yield np.zeros(160, dtype=np.float32)
+            time.sleep(0.02)
+            yield np.zeros(160, dtype=np.float32)
+            threading.Event().wait(30)  # hang, but do not raise
+
+    monkeypatch.setattr(runtime, "calibrate", lambda _device: 0.1)
+    recorder = runtime.StreamRecorder(
+        device=None, config=Config(), source_factory=_StallingSource
+    )
+    try:
+        result = recorder.record(wait_secs=30.0, silence_secs=0.2)
+        assert result is None
+        assert recorder._reader.is_alive()  # still alive, just stalled
+    finally:
+        recorder.close()

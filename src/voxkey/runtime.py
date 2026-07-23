@@ -111,6 +111,9 @@ def calibrate(device: int | None, retries: int = DEFAULT_RETRIES) -> float:
 
 
 POLL_SECS = BLOCK_SECS / 2
+# A real microphone delivers a block every BLOCK_SECS; this much silence from
+# the reader means the device has stalled, not that it is merely quiet.
+READER_STALL_SECS = 5.0
 
 
 class StreamRecorder:
@@ -141,6 +144,7 @@ class StreamRecorder:
         self._capture = ContinuousCapture(config.pre_buffer_secs)
         self._lock = threading.Lock()
         self._arm_origin = 0.0
+        self._last_pump = time.monotonic()
         self._stopping = threading.Event()
         self._blocks: Iterator[npt.NDArray[np.float32]] | None = None
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
@@ -156,6 +160,7 @@ class StreamRecorder:
                 try:
                     with self._lock:
                         now = time.monotonic() - self._arm_origin
+                        self._last_pump = time.monotonic()
                         self._capture.pump(block, now)
                 except Exception:  # noqa: BLE001  # one bad block must not retire the reader
                     logger.exception("error processing an audio block, continuing")
@@ -180,6 +185,17 @@ class StreamRecorder:
                 # single-threaded daemon.
                 if not self._reader.is_alive():
                     logger.error("microphone reader is not running")
+                    break
+                # The reader can also be alive but stalled: a device that hangs
+                # in read() without raising delivers no blocks, so the detector
+                # never advances either. If nothing has been pumped for a while,
+                # give up rather than spin forever.
+                with self._lock:
+                    stalled = time.monotonic() - self._last_pump > READER_STALL_SECS
+                if stalled:
+                    logger.error(
+                        "microphone delivered no audio for %ss", READER_STALL_SECS
+                    )
                     break
                 if stop_requested():
                     with self._lock:
