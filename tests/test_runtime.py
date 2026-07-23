@@ -295,17 +295,51 @@ def test_stream_recorder_close_stops_the_reader_thread(
 
 
 def test_stream_recorder_serves_two_dictations_in_a_row(
+    xdg: Path,  # noqa: ARG001
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    source = _FakePersistentSource(loud_blocks=1000)  # always loud
+    # A short burst of speech then silence, so each dictation ends on its own
+    # silence detector rather than running the source dry.
+    source = _FakePersistentSource(loud_blocks=4)
     recorder = _recorder_with(source, monkeypatch)
     try:
         first = recorder.record(wait_secs=5.0, silence_secs=0.2)
-        # loud forever means the detector never sees silence; a manual stop ends it.
-        paths.stop_file().parent.mkdir(parents=True, exist_ok=True)
-        paths.stop_file().write_text("stop")
         second = recorder.record(wait_secs=0.5, silence_secs=0.2)
-        assert second is not None
-        del first
+        # The first captured speech; the second sees only silence and gives up.
+        assert first is not None
+        assert second is None
+    finally:
+        recorder.close()
+
+
+def test_stream_recorder_does_not_hang_when_the_reader_dies(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A source that raises mid-stream kills the reader thread. record() must
+    # notice and return rather than spin forever, which would wedge the daemon.
+    class _DyingSource:
+        def blocks(self) -> Iterator[np.ndarray]:
+            import time
+
+            for _ in range(3):
+                yield np.zeros(160, dtype=np.float32)
+                time.sleep(0.02)
+            raise OSError("microphone vanished")
+
+    monkeypatch.setattr(runtime, "calibrate", lambda _device: 0.1)
+    recorder = runtime.StreamRecorder(
+        device=None, config=Config(), source_factory=_DyingSource
+    )
+    try:
+        # Give the reader a moment to raise and exit.
+        for _ in range(100):
+            if not recorder._reader.is_alive():
+                break
+            threading.Event().wait(0.02)
+        assert not recorder._reader.is_alive()
+        # wait_secs is long; without the dead-reader guard this would hang.
+        result = recorder.record(wait_secs=30.0, silence_secs=0.2)
+        assert result is None
     finally:
         recorder.close()

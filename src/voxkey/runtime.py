@@ -153,10 +153,13 @@ class StreamRecorder:
             for block in self._blocks:
                 if self._stopping.is_set():
                     break
-                with self._lock:
-                    now = time.monotonic() - self._arm_origin
-                    self._capture.pump(block, now)
-        except Exception:  # noqa: BLE001  # a dying stream must not crash silently
+                try:
+                    with self._lock:
+                        now = time.monotonic() - self._arm_origin
+                        self._capture.pump(block, now)
+                except Exception:  # noqa: BLE001  # one bad block must not retire the reader
+                    logger.exception("error processing an audio block, continuing")
+        except Exception:  # noqa: BLE001  # a dying stream ends the reader, not the process
             logger.exception("microphone reader stopped")
 
     def record(
@@ -170,6 +173,14 @@ class StreamRecorder:
             self._capture.arm(detector)
         try:
             while not self._stopping.is_set():
+                # If the reader thread has died (a microphone failure), no block
+                # will ever advance the detector, so the wait-timeout branch can
+                # never fire. Break here so a dead microphone surfaces as "no
+                # speech" instead of hanging record() and, with it, the whole
+                # single-threaded daemon.
+                if not self._reader.is_alive():
+                    logger.error("microphone reader is not running")
+                    break
                 if stop_requested():
                     with self._lock:
                         self._capture.mark_finished()
