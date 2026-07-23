@@ -17,6 +17,7 @@ https://github.com/user-attachments/assets/a16d01f2-38ca-4971-9223-3566d6746159
 
 ## Why voxkey
 
+- **Born to talk to AI.** voxkey was written to dictate prompts to Claude Code instead of typing them: a spoken prompt takes seconds, a typed one takes minutes. It works just as well anywhere else you write.
 - **Local first.** Speech never leaves your machine. Transcription runs on your own CPU or GPU with faster-whisper. No cloud, no account, no telemetry.
 - **Works everywhere you can paste.** voxkey copies the transcript to the clipboard instead of simulating keystrokes, so it works in any application, regardless of focus or toolkit.
 - **Fast to trigger.** The microphone stays open with a rolling pre-buffer, so the first words you say while pressing the key are already captured. No "wait for the beep".
