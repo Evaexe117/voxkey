@@ -81,3 +81,25 @@ def test_a_non_utf8_hints_file_does_not_raise(tmp_path: Path) -> None:
     result = hints.read_hints_file(source)
     assert "Whisper" in result
     assert "PipeWire" in result
+
+
+def test_an_unreadable_hints_file_is_skipped_not_raised(tmp_path: Path) -> None:
+    source = tmp_path / "secret"
+    source.write_text("Whisper\n")
+    source.chmod(0o000)
+    try:
+        # Must not raise even though the file cannot be read.
+        assert hints.read_hints_file(source) == []
+    finally:
+        source.chmod(0o644)  # let tmp cleanup remove it
+
+
+def test_an_unreadable_hints_directory_is_skipped_not_raised(tmp_path: Path) -> None:
+    hints_dir = tmp_path / "hints.d"
+    hints_dir.mkdir()
+    (hints_dir / "a").write_text("Whisper\n")
+    hints_dir.chmod(0o000)
+    try:
+        assert hints.read_hints_dir(hints_dir) == []
+    finally:
+        hints_dir.chmod(0o755)
