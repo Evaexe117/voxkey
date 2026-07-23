@@ -67,3 +67,134 @@ msgstr "Ukrainien"
 
 msgid "Chinese"
 msgstr "Chinois"
+
+# Control window and tray strings.
+
+msgid "Settings…"
+msgstr "Réglages…"
+
+msgid "Quit the icon"
+msgstr "Quitter l'icône"
+
+msgid "Turn dictation off"
+msgstr "Couper la dictée"
+
+msgid "Turn dictation on"
+msgstr "Activer la dictée"
+
+msgid "Mute the end sound"
+msgstr "Couper le son de fin"
+
+msgid "Unmute the end sound"
+msgstr "Activer le son de fin"
+
+msgid "Language: {name}"
+msgstr "Langue : {name}"
+
+msgid "Dictation stopped"
+msgstr "Dictée coupée"
+
+msgid "Ready, hold the key to speak"
+msgstr "Prête, maintenez la touche pour parler"
+
+msgid "Recording…"
+msgstr "Enregistrement…"
+
+msgid "Transcribing…"
+msgstr "Transcription…"
+
+msgid "Text copied to the clipboard"
+msgstr "Texte copié dans le presse-papier"
+
+msgid "Nothing transcribed (error or silence)"
+msgstr "Rien transcrit (erreur ou silence)"
+
+msgid "Running"
+msgstr "En marche"
+
+msgid "Stopped"
+msgstr "Arrêté"
+
+msgid "none found"
+msgstr "aucun trouvé"
+
+msgid "Status"
+msgstr "Statut"
+
+msgid "Settings"
+msgstr "Réglages"
+
+msgid "Daemon"
+msgstr "Service"
+
+msgid "Model"
+msgstr "Modèle"
+
+msgid "Device"
+msgstr "Appareil"
+
+msgid "Microphone"
+msgstr "Micro"
+
+msgid "Language"
+msgstr "Langue"
+
+msgid "Push-to-talk key"
+msgstr "Touche de dictée"
+
+msgid "Turn off"
+msgstr "Couper"
+
+msgid "Turn on"
+msgstr "Activer"
+
+msgid "Dictate once"
+msgstr "Dicter une fois"
+
+msgid "Cycle language"
+msgstr "Changer de langue"
+
+msgid "Dictating…"
+msgstr "Dictée en cours…"
+
+msgid "Detect…"
+msgstr "Détecter…"
+
+msgid "Languages"
+msgstr "Langues"
+
+msgid "Pre-buffer (s)"
+msgstr "Pré-tampon (s)"
+
+msgid "Silence (s)"
+msgstr "Silence (s)"
+
+msgid "Wait (s)"
+msgstr "Attente (s)"
+
+msgid "End-of-dictation sound"
+msgstr "Son de fin de dictée"
+
+msgid "Test"
+msgstr "Tester"
+
+msgid "Sound"
+msgstr "Son"
+
+msgid "Log transcribed text"
+msgstr "Journaliser le texte transcrit"
+
+msgid "Logging"
+msgstr "Journal"
+
+msgid "Save"
+msgstr "Enregistrer"
+
+msgid "Saved."
+msgstr "Enregistré."
+
+msgid "Press a key…"
+msgstr "Appuyez sur une touche…"
+
+msgid "Detected: {name}"
+msgstr "Détecté : {name}"

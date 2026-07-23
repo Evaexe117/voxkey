@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=voxkey
+Comment=Push-to-talk dictation control window
+Exec=voxkey gui
+Icon=audio-input-microphone
+Categories=Utility;AudioVideo;
+Terminal=false

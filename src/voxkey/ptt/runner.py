@@ -167,11 +167,13 @@ def run_listen(config: Config) -> int:
     from voxkey.ptt.keyboard import find_keyboards
 
     key_code = resolve_key(config.key)
-    device_path = find_keyboards()[0]
+    device_paths = find_keyboards()
     session = DaemonSession(paths.socket_file(), config)
 
-    logger.info("holding %s dictates, reading %s", config.key, device_path)
+    logger.info(
+        "holding %s dictates, reading %s", config.key, ", ".join(device_paths)
+    )
     run_push_to_talk(
-        key_events(device_path, key_code), session, deliver_to_clipboard
+        key_events(device_paths, key_code), session, deliver_to_clipboard
     )
     return 0

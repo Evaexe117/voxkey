@@ -50,9 +50,13 @@ def _spawn(command: list[str], environment: dict[str, str]) -> None:
     )
 
 
-def play(path: Path, spawner: Spawner | None = None) -> bool:
-    """Play a sound unless muted or missing. Returns whether a player started."""
-    if not state.sound_enabled() or not path.exists():
+def play(path: Path, spawner: Spawner | None = None, *, force: bool = False) -> bool:
+    """Play a sound unless muted or missing. Returns whether a player started.
+
+    ``force`` plays even when the end sound is muted, for the Settings "test"
+    button, which must be audible regardless of the current mute state.
+    """
+    if (not force and not state.sound_enabled()) or not path.exists():
         return False
     launch = spawner if spawner is not None else _spawn
     environment = child_environment(os.environ)

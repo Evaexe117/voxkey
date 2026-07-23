@@ -1,0 +1,15 @@
+[Unit]
+Description=voxkey push-to-talk client
+After=voxkey.service
+Requires=voxkey.service
+
+[Service]
+# Reading /dev/input/event* needs the input group, which the desktop session
+# does not carry into the unit. Without this wrapper the client exits with
+# "no keyboard found".
+ExecStart=/usr/bin/sg input -c "%h/.local/bin/voxkey listen"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

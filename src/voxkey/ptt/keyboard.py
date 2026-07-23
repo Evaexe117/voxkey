@@ -12,7 +12,7 @@ the command in ``sg input -c``. Without the wrapper this exits immediately with
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 from voxkey.ptt.machine import KeyEvent
 
@@ -56,16 +56,36 @@ def find_keyboards() -> list[str]:
     return found
 
 
-def key_events(device_path: str, key_code: int) -> Iterator[KeyEvent]:
-    """Yield press and release events for one key on one device."""
+def key_events(device_paths: Sequence[str], key_code: int) -> Iterator[KeyEvent]:
+    """Yield press and release events for one key, across every given device.
+
+    A machine often presents several "keyboards": the real one, plus a gaming
+    mouse or headset that advertises key capabilities. Reading only the first
+    would watch the wrong device and never see the key, so every device is read
+    together through a selector, and a press on any of them is yielded.
+    """
+    import selectors
+    from typing import Any
+
     import evdev
     from evdev import ecodes
 
-    device = evdev.InputDevice(device_path)
-    for event in device.read_loop():
-        if event.type != ecodes.EV_KEY or event.code != key_code:
-            continue
-        if event.value == 1:
-            yield KeyEvent(pressed=True, timestamp=event.timestamp())
-        elif event.value == 0:
-            yield KeyEvent(pressed=False, timestamp=event.timestamp())
+    selector = selectors.DefaultSelector()
+    devices: dict[int, Any] = {}
+    try:
+        for path in device_paths:
+            device: Any = evdev.InputDevice(path)
+            fd: int = device.fileno()
+            selector.register(fd, selectors.EVENT_READ)
+            devices[fd] = device
+        while True:
+            for ready, _mask in selector.select():
+                for event in devices[ready.fd].read():
+                    if event.type != ecodes.EV_KEY or event.code != key_code:
+                        continue
+                    if event.value == 1:
+                        yield KeyEvent(pressed=True, timestamp=event.timestamp())
+                    elif event.value == 0:
+                        yield KeyEvent(pressed=False, timestamp=event.timestamp())
+    finally:
+        selector.close()

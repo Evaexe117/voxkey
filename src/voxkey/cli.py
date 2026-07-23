@@ -54,6 +54,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("stop", help="stop the daemon")
     subparsers.add_parser("devices", help="list audio devices and keyboards")
+    subparsers.add_parser("gui", help="open the control window")
+    subparsers.add_parser("tray", help="run the tray icon")
     return parser
 
 
@@ -130,6 +132,29 @@ def _command_stop() -> int:
     return 0
 
 
+def _launch(module_name: str, human_name: str) -> int:
+    """Import a GTK entry point lazily and run it.
+
+    GTK is an optional extra, so a missing PyGObject or AppIndicator namespace
+    (both surface as ImportError here) prints one line naming the extra, never a
+    traceback, and leaves ``voxkey serve`` on a headless box unaffected.
+    """
+    import importlib
+
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as error:
+        print(
+            f"{human_name} needs the optional GUI support: install it with "
+            f"'pip install voxkey[gui]' and the system GTK and AppIndicator "
+            f"libraries ({error})",
+            file=sys.stderr,
+        )
+        return 1
+    run = module.run
+    return int(run())
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -180,6 +205,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 1
         case "devices":
             return runtime.run_devices()
+        case "gui":
+            return _launch("voxkey.gui.app", "the control window")
+        case "tray":
+            return _launch("voxkey.tray.app", "the tray icon")
         case _:
             parser.print_help(sys.stderr)
             return 2

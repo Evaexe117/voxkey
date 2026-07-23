@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=voxkey tray
+Comment=voxkey dictation status icon
+Exec=voxkey tray
+Icon=audio-input-microphone
+X-GNOME-Autostart-enabled=true
+Terminal=false
+NoDisplay=false

@@ -58,6 +58,20 @@ def test_play_is_silent_when_the_tray_muted_it(xdg: Path, tmp_path: Path) -> Non
     assert spawned == []
 
 
+def test_play_forced_ignores_the_mute_for_the_settings_test(
+    xdg: Path,  # noqa: ARG001
+    tmp_path: Path,
+) -> None:
+    # The Settings "test" button must be audible even while the end sound is off.
+    state.set_sound_enabled(False)
+    target = tmp_path / "a.oga"
+    target.write_bytes(b"")
+    spawned: list[list[str]] = []
+    result = sound.play(target, spawner=lambda c, _: spawned.append(c), force=True)
+    assert result is True
+    assert spawned  # a player was launched despite the mute
+
+
 def test_play_is_silent_when_the_file_is_missing(xdg: Path, tmp_path: Path) -> None:  # noqa: ARG001
     spawned: list[list[str]] = []
     result = sound.play(tmp_path / "absent.oga", spawner=lambda c, _: spawned.append(c))

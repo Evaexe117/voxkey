@@ -28,7 +28,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+# The control window and tray. PyGObject also needs the system GTK 3 and
+# AyatanaAppIndicator3 libraries, which pip cannot provide; install.sh checks.
+gui = ["PyGObject", "tomlkit"]
+# tomlkit here too, so the pure gui.model tests run without PyGObject in CI.
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "tomlkit"]
 
 [project.scripts]
 voxkey = "voxkey.cli:main"
@@ -59,7 +63,14 @@ strict = true
 files = ["src", "tests", "tools"]
 
 [[tool.mypy.overrides]]
-module = ["sounddevice", "evdev", "faster_whisper", "ctranslate2"]
+module = [
+    "sounddevice",
+    "evdev",
+    "faster_whisper",
+    "ctranslate2",
+    "gi",
+    "gi.repository",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

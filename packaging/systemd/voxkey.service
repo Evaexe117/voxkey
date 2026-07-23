@@ -1,0 +1,15 @@
+[Unit]
+Description=voxkey voice-to-text daemon
+After=pipewire.service pipewire-pulse.socket
+Wants=pipewire.service
+
+[Service]
+# PipeWire needs a moment to publish the microphone after login.
+ExecStartPre=/bin/sleep 3
+ExecStart=%h/.local/bin/voxkey serve
+ExecStop=%h/.local/bin/voxkey stop
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -10,7 +10,16 @@ from voxkey.cli import _command_stop, _signal_daemon, build_parser, main
 
 def test_every_documented_subcommand_parses() -> None:
     parser = build_parser()
-    for command in ("serve", "listen", "once", "lang", "stop", "devices"):
+    for command in (
+        "serve",
+        "listen",
+        "once",
+        "lang",
+        "stop",
+        "devices",
+        "gui",
+        "tray",
+    ):
         assert parser.parse_args([command]).command == command
 
 
