@@ -261,6 +261,7 @@ def _recorder_with(
 
 
 def test_stream_recorder_captures_speech_then_silence(
+    xdg: Path,  # noqa: ARG001
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = _FakePersistentSource(loud_blocks=8)
@@ -274,6 +275,7 @@ def test_stream_recorder_captures_speech_then_silence(
 
 
 def test_stream_recorder_returns_none_when_nothing_is_said(
+    xdg: Path,  # noqa: ARG001
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = _FakePersistentSource(loud_blocks=0)  # silent forever
@@ -285,6 +287,7 @@ def test_stream_recorder_returns_none_when_nothing_is_said(
 
 
 def test_stream_recorder_close_stops_the_reader_thread(
+    xdg: Path,  # noqa: ARG001
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = _FakePersistentSource(loud_blocks=0)
