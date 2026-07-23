@@ -189,9 +189,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return runtime.run_serve(
                     config, listen=args.listen, remote=args.remote
                 )
-            except (ValueError, OverflowError) as error:
+            except (ValueError, OverflowError, OSError) as error:
                 # A malformed --listen/--remote (bad shape, or a port out of
-                # range) must print a line, not a startup traceback.
+                # range) raises ValueError/OverflowError; a bind()/listen()
+                # failure (e.g. "Address already in use", or an IPv6 loopback
+                # the AF_INET socket cannot bind) raises OSError. Either way,
+                # print a line and exit rather than a startup traceback.
                 print(str(error), file=sys.stderr)
                 return 1
         case "listen":

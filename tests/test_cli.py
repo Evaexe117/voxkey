@@ -150,6 +150,22 @@ def test_listen_with_no_keyboard_found_returns_1_instead_of_raising(
     assert capsys.readouterr().err.strip()
 
 
+def test_serve_reports_a_bind_failure_instead_of_raising(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # bind() raising "Address already in use" (a socket in TIME_WAIT, or a
+    # zombie server still holding the port) must print a line and exit, not a
+    # startup traceback, matching how listen handles the keyboard vanishing.
+    def _raise(*_args: object, **_kwargs: object) -> int:
+        raise OSError("[Errno 98] Address already in use")
+
+    monkeypatch.setattr("voxkey.runtime.run_serve", _raise)
+    assert main(["serve"]) == 1
+    assert capsys.readouterr().err.strip()
+
+
 def test_signal_daemon_rejects_a_nonpositive_pid(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
