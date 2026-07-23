@@ -10,6 +10,12 @@
   <b>Speech-to-text</b> created by a lazy user to talk to AIs: dictate straight into <b>Claude Code</b> / <b>Codex</b> from the CLI.
 </p>
 
+<p align="center"><a href="README.fr.md">Français</a></p>
+
+> voxkey is an independent project. It is not affiliated with, endorsed by, or
+> sponsored by Anthropic or OpenAI. "Claude" and "Codex" are trademarks of
+> their respective owners, used here only to identify compatible products.
+
 ---
 
 
@@ -145,6 +151,9 @@ mypy
 ```
 
 CI runs ruff, mypy (strict) and the full test suite on Python 3.12 and 3.13.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution and translation
+rules. Report security issues privately as described in
+[SECURITY.md](SECURITY.md).
 
 ## License
 
