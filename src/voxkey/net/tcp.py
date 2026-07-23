@@ -82,7 +82,7 @@ def decode_request(stream: IO[bytes]) -> RemoteRequest:
         raise RemoteError("invalid header: not valid UTF-8") from error
     try:
         header = json.loads(raw_header)
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, RecursionError) as error:
         raise RemoteError(f"invalid header: not valid JSON: {error}") from error
     if not isinstance(header, dict):
         raise RemoteError(
@@ -131,7 +131,7 @@ def decode_response(payload: bytes) -> str:
         raise RemoteError("empty response from the transcription server")
     try:
         message = json.loads(text)
-    except json.JSONDecodeError as error:
+    except (json.JSONDecodeError, RecursionError) as error:
         raise RemoteError(f"invalid response: not valid JSON: {error}") from error
     if not isinstance(message, dict):
         raise RemoteError(

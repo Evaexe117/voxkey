@@ -114,3 +114,11 @@ def test_non_finite_duration_is_rejected() -> None:
                     b'{"language":"en","silence_secs":Infinity}'):
         with pytest.raises(ProtocolError, match="finite"):
             decode_request(payload)
+
+
+def test_deeply_nested_json_raises_protocol_error_not_recursionerror() -> None:
+    payload = b"[" * 100000 + b"]" * 100000
+    with pytest.raises(ProtocolError):
+        decode_request(payload)
+    with pytest.raises(ProtocolError):
+        decode_reply(payload)

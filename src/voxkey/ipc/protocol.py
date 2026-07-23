@@ -89,7 +89,7 @@ def _as_optional_positive_number(key: str, value: object) -> float | None:
 def decode_request(payload: bytes) -> DictationRequest:
     try:
         body = json.loads(payload.decode() or "{}")
-    except (ValueError, UnicodeDecodeError) as error:
+    except (ValueError, UnicodeDecodeError, RecursionError) as error:
         raise ProtocolError(f"unreadable request: {error}") from error
     if not isinstance(body, dict):
         raise ProtocolError("request must be a JSON object")
@@ -125,7 +125,7 @@ def decode_reply(payload: bytes) -> Reply:
     """
     try:
         body = json.loads(payload.decode())
-    except (ValueError, UnicodeDecodeError) as error:
+    except (ValueError, UnicodeDecodeError, RecursionError) as error:
         raise ProtocolError(f"unreadable reply: {error}") from error
     if not isinstance(body, dict):
         raise ProtocolError("reply must be a JSON object")

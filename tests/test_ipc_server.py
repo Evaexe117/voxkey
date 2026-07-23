@@ -396,3 +396,21 @@ def test_daemon_sets_error_state_when_the_transcriber_raises(
     finally:
         instance.stop()
         thread.join(timeout=5)
+
+
+def test_daemon_survives_a_deeply_nested_json_request(
+    daemon: tuple[Daemon, Path, FakeTranscriber],
+) -> None:
+    _instance, socket_path, _transcriber = daemon
+    # A nested body makes json.loads raise RecursionError, which must not escape
+    # decode_request as anything but a clean error the daemon absorbs.
+    nested = b"[" * 100000 + b"]" * 100000
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.connect(str(socket_path))
+    with client:
+        client.sendall(nested)
+        client.shutdown(socket.SHUT_WR)
+        client.recv(4096)  # an error reply, or a closed socket, but no crash
+    # The daemon must still serve a normal request afterwards.
+    replies = _dictate(socket_path, DictationRequest(language="en"))
+    assert any(isinstance(reply, ResultMessage) for reply in replies)

@@ -168,3 +168,9 @@ def test_audio_length_over_the_limit_is_rejected_without_reading_it() -> None:
     frame = _frame_with_header_bytes(header)
     with pytest.raises(RemoteError, match="audio too large"):
         decode_request(io.BytesIO(frame))
+
+
+def test_deeply_nested_json_response_raises_remote_error() -> None:
+    payload = b"[" * 100000 + b"]" * 100000
+    with pytest.raises(RemoteError):
+        decode_response(payload)
