@@ -202,6 +202,11 @@ et 3.13. Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les règles de
 contribution et de traduction ; les failles se signalent en privé comme
 décrit dans [SECURITY.md](SECURITY.md).
 
+## Crédits
+
+voxkey est né comme un fork de [dictate](https://github.com/vimalk78/dictate)
+de Vimal Kumar (MIT). Merci pour l'idée et le socle d'origine.
+
 ## Licence
 
 [MIT](LICENSE)

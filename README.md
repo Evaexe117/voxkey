@@ -155,6 +155,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution and translation
 rules. Report security issues privately as described in
 [SECURITY.md](SECURITY.md).
 
+## Credits
+
+voxkey started as a fork of [dictate](https://github.com/vimalk78/dictate)
+by Vimal Kumar (MIT). Thanks for the original idea and groundwork.
+
 ## License
 
 [MIT](LICENSE)
