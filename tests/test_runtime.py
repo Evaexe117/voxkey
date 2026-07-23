@@ -409,3 +409,88 @@ def test_request_stop_unblocks_an_in_flight_record(
         assert result is not None
     finally:
         recorder.close()
+
+
+class _RaisingTranscriber:
+    """A transcriber that fails the first request, then works. Models can raise
+    anything (CUDA OOM, backend asserts); the server must survive it."""
+
+    def __init__(self) -> None:
+        self._first = True
+
+    def transcribe(
+        self,
+        audio: np.ndarray,  # noqa: ARG002
+        language: str,  # noqa: ARG002
+        initial_prompt: str | None,  # noqa: ARG002
+    ) -> str:
+        if self._first:
+            self._first = False
+            raise RuntimeError("model exploded")
+        return "second heard you"
+
+
+def test_tcp_server_survives_a_transcriber_that_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runtime, "CONNECTION_TIMEOUT_SECS", 0.3)
+    transcriber = _RaisingTranscriber()
+    probe_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe_socket.bind(("127.0.0.1", 0))
+    address = probe_socket.getsockname()
+    probe_socket.close()
+    stop = threading.Event()
+    thread = threading.Thread(
+        target=runtime.run_tcp_server, args=(transcriber, address, stop), daemon=True
+    )
+    thread.start()
+    try:
+        for _ in range(200):
+            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                probe.connect(address)
+            except OSError:
+                probe.close()
+                threading.Event().wait(0.01)
+                continue
+            else:
+                probe.close()
+                break
+
+        frame = encode_request(
+            RemoteRequest("fr", "", np.ones(4, dtype=np.float32))
+        )
+        # First request makes the model raise; must come back as an error reply,
+        # not a dead server.
+        from voxkey.net.tcp import RemoteError
+
+        with socket.create_connection(address, 5) as first:
+            first.sendall(frame)
+            first.shutdown(socket.SHUT_WR)
+            payload = b""
+            while True:
+                chunk = first.recv(4096)
+                if not chunk:
+                    break
+                payload += chunk
+        try:
+            decode_response(payload)
+            raise AssertionError("expected an error reply")
+        except RemoteError as error:
+            assert "model exploded" in str(error)
+
+        # The server must still serve the next client.
+        with socket.create_connection(address, 5) as second:
+            second.sendall(frame)
+            second.shutdown(socket.SHUT_WR)
+            payload = b""
+            while True:
+                chunk = second.recv(4096)
+                if not chunk:
+                    break
+                payload += chunk
+        assert decode_response(payload) == "second heard you"
+        assert thread.is_alive()
+    finally:
+        stop.set()
+        thread.join(timeout=5)

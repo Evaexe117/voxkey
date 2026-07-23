@@ -43,7 +43,7 @@ from voxkey.audio.devices import (
 )
 from voxkey.config import Config
 from voxkey.ipc.server import Daemon
-from voxkey.net.tcp import RemoteError, decode_request, encode_error, encode_response
+from voxkey.net.tcp import decode_request, encode_error, encode_response
 from voxkey.ptt.keyboard import NoKeyboardError, find_keyboards
 from voxkey.transcribe.base import Transcriber
 from voxkey.transcribe.local import (
@@ -278,7 +278,10 @@ def run_tcp_server(
                         request.audio, request.language, request.initial_prompt or None
                     )
                     _tcp_send(connection, encode_response(text))
-                except (RemoteError, OSError, ValueError) as error:
+                except Exception as error:  # noqa: BLE001  # one bad request must not kill the server
+                    # As broad as the Unix daemon's handler: a transcription
+                    # failure (CUDA OOM, a backend assertion) must fail this one
+                    # request, not take down the server for every other client.
                     logger.warning("request from %s failed: %s", peer, error)
                     _tcp_send(connection, encode_error(str(error)))
     finally:

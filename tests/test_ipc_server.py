@@ -272,3 +272,49 @@ def test_a_stale_socket_file_is_replaced(
     finally:
         instance.stop()
         thread.join(timeout=5)
+
+
+class _RaisingThenWorkingTranscriber:
+    """Raises on the first transcription, then works. The daemon must survive a
+    model failure (CUDA OOM, backend assert) and keep serving."""
+
+    def __init__(self) -> None:
+        self._first = True
+
+    def transcribe(
+        self,
+        audio: npt.NDArray[np.float32],  # noqa: ARG002
+        language: str,  # noqa: ARG002
+        initial_prompt: str | None,  # noqa: ARG002
+    ) -> str:
+        if self._first:
+            self._first = False
+            raise RuntimeError("model exploded")
+        return "recovered"
+
+
+def test_daemon_survives_a_transcriber_that_raises(xdg: Path, tmp_path: Path) -> None:  # noqa: ARG001
+    socket_path = tmp_path / "raise.sock"
+    instance = Daemon(
+        transcriber=_RaisingThenWorkingTranscriber(),
+        recorder=FakeRecorder([np.ones(160, dtype=np.float32)]),
+        socket_path=socket_path,
+        config=Config(),
+    )
+    thread = threading.Thread(target=instance.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for _ in range(200):
+            if socket_path.exists():
+                break
+            threading.Event().wait(0.01)
+        # First request raises inside the model; must come back as an error reply.
+        first = _dictate(socket_path, DictationRequest(language="en"))
+        assert any(isinstance(reply, ErrorMessage) for reply in first)
+        assert thread.is_alive()
+        # The daemon must still serve the next request.
+        second = _dictate(socket_path, DictationRequest(language="en"))
+        assert ResultMessage("recovered") in second
+    finally:
+        instance.stop()
+        thread.join(timeout=5)
