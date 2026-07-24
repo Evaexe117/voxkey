@@ -105,7 +105,11 @@ def parse(raw: dict[str, object]) -> Config:
     for key in _DURATION_KEYS:
         if key in raw:
             seconds = _as_number(key, raw[key])
-            if seconds <= 0:
+            # silence_secs == 0 is the sentinel that disables the silence
+            # cut-off (pure push-to-talk); the other durations must stay
+            # strictly positive.
+            allows_zero = key == "silence_secs"
+            if seconds < 0 or (seconds == 0 and not allows_zero):
                 raise ConfigError(f"{key}: expected a positive number, found {seconds}")
             values[key] = seconds
     if "log_transcripts" in raw:

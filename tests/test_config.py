@@ -60,9 +60,19 @@ def test_empty_language_list_is_rejected() -> None:
 
 
 def test_non_positive_durations_are_rejected() -> None:
-    for key in ("pre_buffer_secs", "silence_secs", "wait_secs"):
+    # pre_buffer_secs and wait_secs must be strictly positive; a negative value
+    # is rejected for every duration.
+    for key in ("pre_buffer_secs", "wait_secs"):
         with pytest.raises(ConfigError, match=key):
             parse({key: 0})
+    for key in ("pre_buffer_secs", "silence_secs", "wait_secs"):
+        with pytest.raises(ConfigError, match=key):
+            parse({key: -1})
+
+
+def test_silence_secs_zero_is_allowed_as_the_disabled_sentinel() -> None:
+    # silence_secs == 0 disables the silence cut-off (pure push-to-talk).
+    assert parse({"silence_secs": 0}).silence_secs == 0
 
 
 def test_remote_must_look_like_host_port() -> None:

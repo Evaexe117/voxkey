@@ -85,7 +85,11 @@ class SilenceDetector:
             self._last_speech = now
             return True
         if self.speech_detected:
-            if now - self._last_speech >= self._silence_secs:
+            # silence_secs <= 0 disables the silence cut-off: the recording
+            # becomes a pure push-to-talk that only ends on key release or the
+            # hard ceiling, so a long pause mid-sentence is never mistaken for
+            # the end of speech.
+            if self._silence_secs > 0 and now - self._last_speech >= self._silence_secs:
                 self.finished = True
                 return False
             return True

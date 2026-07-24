@@ -55,6 +55,21 @@ def test_continuous_noise_hits_the_hard_ceiling() -> None:
     assert detector.speech_detected is True
 
 
+def test_silence_never_stops_recording_when_disabled() -> None:
+    # silence_secs <= 0 turns the recording into a pure push-to-talk: the
+    # silence branch never fires, so only the key release (handled elsewhere)
+    # or the hard ceiling can end it. A long think mid-sentence is kept.
+    detector = SilenceDetector(
+        threshold=0.1, silence_secs=0.0, wait_secs=10.0, max_secs=60.0
+    )
+    assert detector.feed(0.5, now=0.0) is True
+    assert detector.feed(0.0, now=30.0) is True
+    assert detector.feed(0.0, now=59.9) is True
+    assert detector.finished is False
+    # The hard ceiling still applies as a safety net.
+    assert detector.feed(0.0, now=60.0) is False
+
+
 def test_prebuffer_keeps_only_the_last_second() -> None:
     buffer = PreBuffer(max_secs=1.0, sample_rate=10)
     for value in range(15):
