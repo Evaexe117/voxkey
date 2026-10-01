@@ -134,3 +134,44 @@ def test_daemon_session_reads_the_language_live_each_dictation(
     session.start()
     session.finish()
     assert sent == ["en", "fr"]
+
+
+def test_stop_is_reraised_when_the_daemon_clears_it_at_record_start(
+    xdg: Path,  # noqa: ARG001
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A phantom press right after a dictation aborts before the daemon has
+    # begun recording; the daemon then clears the early stop flag. The client
+    # must keep raising it, or the recording never ends.
+    import threading
+    import time
+
+    from voxkey import hints, paths
+    from voxkey.config import Config
+    from voxkey.ipc.protocol import DictationRequest
+    from voxkey.ptt import runner
+
+    def fake_dictate(
+        _sock: object, _request: DictationRequest, _on_status: object = None
+    ) -> str:
+        time.sleep(0.3)  # the daemon only starts recording now...
+        paths.stop_file().unlink(missing_ok=True)  # ...and clears the early stop
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if paths.stop_file().exists():
+                seen.append(True)
+                break
+            time.sleep(0.01)
+        return ""
+
+    seen: list[bool] = []
+
+    monkeypatch.setattr(runner, "dictate_once", fake_dictate)
+    monkeypatch.setattr(hints, "load_hints", lambda: None)
+    session = runner.DaemonSession(paths.socket_file(), Config(language="en"))
+    session.start()
+    finisher = threading.Thread(target=session.abort)
+    finisher.start()
+    finisher.join(10)
+    assert not finisher.is_alive()
+    assert seen == [True]

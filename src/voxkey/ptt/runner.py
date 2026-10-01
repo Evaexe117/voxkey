@@ -95,6 +95,9 @@ def run_push_to_talk(
             logger.exception("dictation failed, continuing")
 
 
+STOP_RETRY_SECS = 0.1
+
+
 class DaemonSession:
     """Session backed by the daemon over its Unix socket."""
 
@@ -130,10 +133,19 @@ class DaemonSession:
     def _join(self) -> None:
         # Releasing the key raises the stop flag; the daemon then stops
         # recording and answers, which lets the worker thread finish.
-        state.write_atomic(paths.stop_file(), "stop")
-        if self._thread is not None:
-            self._thread.join()
-            self._thread = None
+        # The daemon clears a stale stop flag when a recording begins, so a stop
+        # written before the daemon has picked up the request would be lost and
+        # the recording would run on until its ceiling. Re-raise the flag until
+        # the worker has actually finished.
+        thread = self._thread
+        while True:
+            state.write_atomic(paths.stop_file(), "stop")
+            if thread is None:
+                break
+            thread.join(STOP_RETRY_SECS)
+            if not thread.is_alive():
+                break
+        self._thread = None
 
     def finish(self) -> str:
         self._join()
